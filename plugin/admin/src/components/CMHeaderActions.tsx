@@ -7,7 +7,7 @@ import {
   SingleSelectOption,
   Typography,
 } from '@strapi/design-system'
-import { Earth, WarningCircle } from '@strapi/icons'
+import { WarningCircle } from '@strapi/icons'
 import {
   unstable_useDocument as useDocument,
   useQueryParams,
@@ -28,6 +28,7 @@ import parseRelations from '../utils/parse-relations'
 import { unset } from 'lodash'
 import useUsage from '../Hooks/useUsage'
 import useAlert from '../Hooks/useAlert'
+import PluginIcon from './PluginIcon'
 
 interface I18nBaseQuery {
   plugins?: {
@@ -209,7 +210,7 @@ export const TranslateFromAnotherLocaleAction: HeaderActionComponent = ({
 
   return {
     type: 'icon',
-    icon: <Earth />,
+    icon: <PluginIcon />,
     disabled: availableLocales.length === 0,
     label: formatMessage({
       id: getTranslation('CMEditViewTranslateLocale.translate-text'),

@@ -34,7 +34,9 @@
               "type": "text",
               "text": "Links "
             }
-          ]
+          ],
+          "rel": "noopener",
+          "target": "_blank"
         },
         {
           "type": "text",
@@ -134,6 +136,7 @@
     },
     {
       "type": "code",
+      "language": "cpp",
       "children": [
         {
           "type": "text",

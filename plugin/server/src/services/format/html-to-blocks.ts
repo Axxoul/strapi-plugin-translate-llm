@@ -1,38 +1,19 @@
 import { Schema } from '@strapi/strapi'
-import { Converter } from 'showdown'
 import { JSDOM } from 'jsdom'
-import { FormatService } from '@shared/services/format'
-
 import { createCache } from 'cache-manager'
-import { renderBlock } from 'blocks-html-renderer'
-import { TRANSLATE_BLOCKS_IMAGE_CACHE_TTL } from '../utils/constants'
+import { TRANSLATE_BLOCKS_IMAGE_CACHE_TTL } from '../../utils/constants'
 
 const dom = new JSDOM()
-const showdownConverter = new Converter({
-  noHeaderId: true,
-  strikethrough: true,
-})
 
-const blocksImageCache = createCache({
+export const blocksImageCache = createCache({
   ttl: TRANSLATE_BLOCKS_IMAGE_CACHE_TTL,
 })
-
-function markdownToHtml(singleText: string): string {
-  return showdownConverter.makeHtml(singleText)
-}
-
-function htmlToMarkdown(singleText: string): string {
-  return showdownConverter
-    .makeMarkdown(singleText, dom.window.document)
-    .replace(/<!-- -->\n/g, '')
-    .trim()
-}
 
 /**
  *
  * @param {Array} blocks
  */
-async function cacheImages(
+export async function cacheImages(
   blocks: Schema.Attribute.BlocksValue | Schema.Attribute.BlocksValue[]
 ) {
   for (const block of blocks.flat(2)) {
@@ -41,7 +22,6 @@ async function cacheImages(
     }
   }
 }
-
 /**
  *
  * @param {ChildNode} childNode
@@ -77,14 +57,12 @@ function collectFormattings(
   }
   return formattings
 }
-
 const emptyText: [{ type: 'text'; text: '' }] = [
   {
     type: 'text',
     text: '',
   },
 ]
-
 function convertInlineTextElementToBlocks(element: Element) {
   const elements: Schema.Attribute.BlocksTextNode[] = []
   for (const child of element.childNodes) {
@@ -117,7 +95,6 @@ function convertInlineTextElementToBlocks(element: Element) {
   }
   return elements
 }
-
 /**
  *
  * @param {Element} element
@@ -136,6 +113,8 @@ function convertInlineElementToBlocks(element: Element) {
           type: 'link',
           url: anchorElement.getAttribute('href'),
           children: convertInlineTextElementToBlocks(anchorElement),
+          rel: anchorElement.getAttribute('rel'),
+          target: anchorElement.getAttribute('target'),
         })
         continue
       }
@@ -169,8 +148,7 @@ function convertInlineElementToBlocks(element: Element) {
   }
   return elements
 }
-
-async function convertHtmlToBlock(html: string) {
+export async function convertHtmlToBlock(html: string) {
   const root = dom.window.document.createElement('div')
   root.innerHTML = html
 
@@ -213,6 +191,8 @@ async function convertHtmlToBlock(html: string) {
       const code = child.querySelector('code')
       blocks.push({
         type: 'code',
+        language:
+          code?.getAttribute('class')?.replace('language-', '') || undefined,
         children: [
           {
             type: 'text',
@@ -240,39 +220,3 @@ async function convertHtmlToBlock(html: string) {
   }
   return blocks
 }
-
-export default (): FormatService => ({
-  markdownToHtml(text) {
-    if (Array.isArray(text)) {
-      return text.map(markdownToHtml)
-    }
-    return markdownToHtml(text)
-  },
-  htmlToMarkdown(text) {
-    if (Array.isArray(text)) {
-      return text.map(htmlToMarkdown)
-    }
-    return htmlToMarkdown(text)
-  },
-  async blockToHtml(block) {
-    if (!Array.isArray(block)) {
-      throw new Error(
-        'blockToHtml expects an array of blocks or a single block. Got ' +
-          typeof block
-      )
-    }
-    await cacheImages(block)
-    if (block.length > 0) {
-      if (!('type' in block[0])) {
-        return (block as Schema.Attribute.BlocksValue[]).map(renderBlock)
-      }
-      return renderBlock(block as Schema.Attribute.BlocksValue)
-    }
-  },
-  async htmlToBlock(html) {
-    if (Array.isArray(html)) {
-      return Promise.all(html.map(convertHtmlToBlock))
-    }
-    return convertHtmlToBlock(html)
-  },
-})

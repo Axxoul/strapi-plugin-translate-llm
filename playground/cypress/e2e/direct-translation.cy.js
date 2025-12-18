@@ -152,7 +152,7 @@ describe('direct translation', () => {
     cy.login()
 
     // Translate all categories
-    cy.getAllSessionStorage().then((result) => {
+    cy.getAllLocalStorage().then((result) => {
       cy.request({
         method: 'POST',
         url: '/translate/batch',
