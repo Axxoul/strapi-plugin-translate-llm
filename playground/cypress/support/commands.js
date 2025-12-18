@@ -17,11 +17,11 @@ Cypress.Commands.add('login', () => {
   }).then((result) => {
     cy.visit('/admin', {
       onBeforeLoad: (contentWindow) => {
-        contentWindow.sessionStorage.setItem(
+        contentWindow.localStorage.setItem(
           'jwtToken',
           JSON.stringify(result.body.data.token)
         )
-        contentWindow.sessionStorage.setItem(
+        contentWindow.localStorage.setItem(
           'userInfo',
           JSON.stringify(result.body.data.user)
         )
