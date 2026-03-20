@@ -60,6 +60,7 @@ describe('translate controller', () => {
     // then
     expect(ctx.badRequest).not.toHaveBeenCalled()
     expect(mockTranslateService).toHaveBeenCalled()
+    expect(ctx.res.end).toHaveBeenCalled()
   })
 
   it('bad request if source locale is missing', async () => {

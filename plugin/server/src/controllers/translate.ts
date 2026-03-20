@@ -12,6 +12,7 @@ import { TranslateConfig } from '../config'
 import { TranslateEntity } from '../../../shared/contracts/translate'
 import { isCollectionType, isContentTypeUID } from '../utils/content-type'
 import { handleContextError } from '../utils/handle-error'
+import { withKeepAlive } from '../utils/keep-alive'
 
 export interface TranslateController extends Core.Controller {
   translateEntity: Core.ControllerHandler<TranslateEntity.Response>
@@ -86,20 +87,25 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
       return ctx.notFound('corresponding content type not found')
     }
 
-    try {
-      const translatedData = await getService('translate').translateEntity({
-        documentId,
-        contentType,
-        sourceLocale,
-        targetLocale,
-        create: false,
-        priority: TRANSLATE_PRIORITY_DIRECT_TRANSLATION,
-      })
+    await withKeepAlive(ctx, async () => {
+      try {
+        const translatedData = await getService('translate').translateEntity({
+          documentId,
+          contentType,
+          sourceLocale,
+          targetLocale,
+          create: false,
+          priority: TRANSLATE_PRIORITY_DIRECT_TRANSLATION,
+        })
 
-      return { data: translatedData }
-    } catch (error) {
-      return handleContextError(ctx, error, 'TranslateEntity.error')
-    }
+        return { data: translatedData }
+      } catch (error: any) {
+        return {
+          data: null,
+          error: { message: error.message || 'Translation failed' },
+        }
+      }
+    })
   },
   async translateBatch(ctx) {
     const {
