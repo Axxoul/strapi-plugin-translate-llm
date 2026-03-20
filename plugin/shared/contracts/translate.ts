@@ -1,7 +1,7 @@
 import { UID, Data } from '@strapi/strapi'
 import { errors } from '@strapi/utils'
 import { BatchTranslateJob } from '../types/batch-translate-job'
-import { ReportData } from '@shared/types/report'
+import { ReportData, TieredReportData } from '@shared/types/report'
 
 /**
  * POST /translate/entity - Translate a single entity
@@ -147,7 +147,7 @@ export declare namespace ContentTypesTranslationReport {
 
   export type Response =
     | {
-        data: ReportData
+        data: TieredReportData
       }
     | {
         data: null

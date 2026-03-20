@@ -16,8 +16,11 @@ const createProvider = async (translateConfig: TranslateConfig) => {
     provider = dummyProvider
   } else {
     let modulePath: string
+    const moduleName = `strapi-provider-translate-${providerName}`
     try {
-      modulePath = require.resolve(`strapi-provider-translate-${providerName}`)
+      modulePath = require.resolve(moduleName, {
+        paths: [process.cwd(), __dirname],
+      })
     } catch (error) {
       if (error.code === 'MODULE_NOT_FOUND') {
         modulePath = providerName

@@ -5,7 +5,6 @@ import { Flex } from '@strapi/design-system'
 import { Badge } from '@strapi/design-system'
 import { useIntl } from 'react-intl'
 import { IconButton, IconButtonGroup } from '@strapi/design-system'
-import { Tooltip } from '@strapi/design-system'
 import { Earth, Cross, Clock, Play } from '@strapi/icons'
 import PropTypes from 'prop-types'
 import { getTranslation } from '../../utils'
@@ -83,8 +82,8 @@ const CollectionRow = ({
                       })}
                     </Badge>
                   ) : (
-                    <Tooltip
-                      label={
+                    <div
+                      title={
                         job.failureReason?.message ||
                         formatMessage({
                           id: getTranslation(`errors.unknown`),
@@ -92,21 +91,19 @@ const CollectionRow = ({
                         })
                       }
                     >
-                      <div>
-                        <Badge
-                          marginLeft={1}
-                          textColor="neutral100"
-                          backgroundColor={'danger500'}
-                        >
-                          {formatMessage({
-                            id: getTranslation(
-                              `batch-translate.table.job-status.${job.status}`
-                            ),
-                            defaultMessage: `Job ${job.status}`,
-                          })}
-                        </Badge>
-                      </div>
-                    </Tooltip>
+                      <Badge
+                        marginLeft={1}
+                        textColor="neutral100"
+                        backgroundColor={'danger500'}
+                      >
+                        {formatMessage({
+                          id: getTranslation(
+                            `batch-translate.table.job-status.${job.status}`
+                          ),
+                          defaultMessage: `Job ${job.status}`,
+                        })}
+                      </Badge>
+                    </div>
                   ))}
               </Flex>
               <IconButtonGroup>
@@ -119,6 +116,7 @@ const CollectionRow = ({
                     ),
                     defaultMessage: 'Translate',
                   })}
+                  withTooltip={false}
                   disabled={
                     complete ||
                     (job &&
@@ -138,6 +136,7 @@ const CollectionRow = ({
                     ),
                     defaultMessage: 'Cancel',
                   })}
+                  withTooltip={false}
                   disabled={
                     complete ||
                     !['created', 'setup', 'running'].includes(job?.status)
@@ -154,6 +153,7 @@ const CollectionRow = ({
                     ),
                     defaultMessage: 'Pause',
                   })}
+                  withTooltip={false}
                   disabled={
                     complete ||
                     !['created', 'setup', 'running'].includes(job?.status)
@@ -170,6 +170,7 @@ const CollectionRow = ({
                     ),
                     defaultMessage: 'Resume',
                   })}
+                  withTooltip={false}
                   disabled={complete || job?.status !== 'paused'}
                 >
                   <Play />

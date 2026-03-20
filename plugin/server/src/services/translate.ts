@@ -14,7 +14,11 @@ import { TranslateConfig } from '../config'
 import { keys } from '../utils/objects'
 import { TranslateService } from '@shared/services/translate'
 import { Locale } from '@shared/types/locale'
-import { SingleLocaleTranslationReport } from '@shared/types/report'
+import {
+  SingleLocaleTranslationReport,
+  TierGroup,
+  ContentTypeTranslationReport,
+} from '@shared/types/report'
 import {
   isCollectionType,
   isContentTypeUID,
@@ -22,6 +26,11 @@ import {
 } from '../utils/content-type'
 import { BatchTranslateJob } from '@shared/types/batch-translate-job'
 import { populateAll, translateRelations } from '../utils'
+import {
+  buildDependencyGraph,
+  findSCCs,
+  computeTiers,
+} from '../utils/content-type-graph'
 
 export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
   batchTranslateManager: new BatchTranslateManagerImpl(),
@@ -259,7 +268,12 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
       await geti18nService('locales').find()
     )
 
-    const reports = await Promise.all(
+    // Build dependency graph and compute tiers
+    const graph = buildDependencyGraph(strapi)
+    const sccs = findSCCs(graph)
+    const tierMap = computeTiers(graph, sccs)
+
+    const reports: ContentTypeTranslationReport[] = await Promise.all(
       localizedContentTypes.map(async (contentType) => {
         // get jobs
         const translateJobs = (await strapi
@@ -296,14 +310,42 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
             job: translateJobs.find((job) => job.targetLocale === code),
           }
         })
+        const tierInfo = tierMap.get(contentType)
         return {
           contentType,
           collection: strapi.contentTypes[contentType].info.displayName,
           localeReports,
+          tier: tierInfo?.tier ?? 0,
+          circular: tierInfo?.circular ?? false,
         }
       })
     )
 
-    return { contentTypes: reports, locales }
+    // Group into tiers by tier number
+    const tierGroups = new Map<number, ContentTypeTranslationReport[]>()
+    for (const report of reports) {
+      if (!tierGroups.has(report.tier)) {
+        tierGroups.set(report.tier, [])
+      }
+      tierGroups.get(report.tier)!.push(report)
+    }
+
+    const sortedTierNumbers = [...tierGroups.keys()].sort((a, b) => a - b)
+    const tiers: TierGroup[] = sortedTierNumbers.map((tierNum) => {
+      const contentTypes = tierGroups.get(tierNum)!
+      const circular = contentTypes.some((r) => r.circular)
+      return {
+        tier: tierNum,
+        circular,
+        description: circular
+          ? 'These types reference each other — translate in any order within this tier'
+          : tierNum === 0
+            ? 'No localized relation dependencies — translate these first'
+            : `Depends on types in tiers 0 through ${tierNum - 1}`,
+        contentTypes,
+      }
+    })
+
+    return { tiers, locales }
   },
 })

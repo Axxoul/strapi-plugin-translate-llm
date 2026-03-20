@@ -1,19 +1,17 @@
 import React, { memo, useState, useEffect } from 'react'
-import { Field, Table, Tbody } from '@strapi/design-system'
-import { Box } from '@strapi/design-system'
+import { Field } from '@strapi/design-system'
 import { Modal } from '@strapi/design-system'
 import { useIntl } from 'react-intl'
 import { Flex } from '@strapi/design-system'
 import { Typography } from '@strapi/design-system'
-import { WarningCircle } from '@strapi/icons'
 import { SingleSelect, SingleSelectOption } from '@strapi/design-system'
 import { Button } from '@strapi/design-system'
 import { Toggle } from '@strapi/design-system'
 import useCollection from '../../Hooks/useCollection'
 import { getTranslation } from '../../utils'
 import useUsage from '../../Hooks/useUsage'
-import CollectionTableHeader from './CollectionHeader'
-import CollectionRow from './CollectionRow'
+import TierTable from './TierTable'
+import TierHeader from './TierHeader'
 import {
   useTranslateBatchJobCancelMutation,
   useTranslateBatchJobPauseMutation,
@@ -33,7 +31,7 @@ type HandleActionProps = {
 }
 
 const CollectionTable = () => {
-  const { collections, locales } = useCollection()
+  const { collections, tiers, locales } = useCollection()
   const { formatMessage } = useIntl()
   const { handleNotification } = useAlert()
   const {
@@ -234,32 +232,23 @@ const CollectionTable = () => {
     }
   }
 
-  const ROW_COUNT = collections.length
-  const COL_COUNT = locales.length + 1
-
   return (
     <div>
-      <Table colCount={COL_COUNT} rowCount={ROW_COUNT}>
-        <CollectionTableHeader locales={locales} />
-        <Tbody>
-          {collections.map((collection, index) => (
-            <CollectionRow
-              key={collection.contentType}
-              entry={collection}
-              updateCount={
-                updates.filter(
-                  (update) => update?.contentType === collection.contentType
-                ).length
-              }
-              locales={locales}
-              onAction={(action, targetLocale) =>
-                handleAction({ action, targetLocale, collection })
-              }
-              index={index}
-            />
-          ))}
-        </Tbody>
-      </Table>
+      {tiers.map((tierGroup) => (
+        <div key={tierGroup.tier}>
+          <TierHeader
+            tier={tierGroup.tier}
+            circular={tierGroup.circular}
+            description={tierGroup.description}
+          />
+          <TierTable
+            contentTypes={tierGroup.contentTypes}
+            locales={locales}
+            updates={updates}
+            onAction={handleAction}
+          />
+        </div>
+      ))}
       {dialogOpen && (
         <Modal.Root open={dialogOpen} onOpenChange={handleToggleDialog}>
           <Modal.Content>

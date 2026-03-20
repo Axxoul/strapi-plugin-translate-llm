@@ -1,8 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getTranslation } from '../utils/getTranslation'
 import useAlert from './useAlert'
 import { isFetchError } from '@strapi/strapi/admin'
 import { useContentTypesTranslationReportQuery } from '../services/report'
+import { ContentTypeTranslationReport } from '@shared/types/report'
+
+function hasRunningJob(col: ContentTypeTranslationReport): boolean {
+  return !!Object.keys(col.localeReports).find((locale) =>
+    ['created', 'setup', 'running'].includes(
+      col.localeReports[locale].job?.status
+    )
+  )
+}
 
 export function useCollection() {
   const [realTimeReports, setRealTimeReports] = useState(false)
@@ -40,14 +49,9 @@ export function useCollection() {
   // If a job in the report is in progress, set realTimeReports to true
   useEffect(() => {
     if (report) {
-      const isTranslating = report.data?.contentTypes.find(
-        (col) =>
-          !!Object.keys(col.localeReports).find((locale) =>
-            ['created', 'setup', 'running'].includes(
-              col.localeReports[locale].job?.status
-            )
-          )
-      )
+      const allContentTypes =
+        report.data?.tiers?.flatMap((t) => t.contentTypes) || []
+      const isTranslating = allContentTypes.find(hasRunningJob)
 
       if (!isTranslating) setRealTimeReports(false)
       else setRealTimeReports(true)
@@ -67,13 +71,16 @@ export function useCollection() {
     return () => clearInterval(interval)
   }, [realTimeReports])
 
+  // Flat list for backward compat (modal logic etc.)
+  const collections = useMemo(() => {
+    if (!report?.data) return []
+    return report.data.tiers?.flatMap((t) => t.contentTypes) || []
+  }, [report])
+
   return {
-    collections: report?.data?.contentTypes || [],
+    collections,
+    tiers: report?.data?.tiers || [],
     locales: report?.data?.locales || [],
-    // translateCollection,
-    // pauseTranslation,
-    // resumeTranslation,
-    // cancelTranslation,
     refetchCollection: refetchReport,
     handleNotification,
     setRealTimeReports,

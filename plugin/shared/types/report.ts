@@ -24,7 +24,29 @@ export interface ContentTypeTranslationReport {
    */
   collection: string
   localeReports: Record<string, SingleLocaleTranslationReport>
+  /**
+   * Dependency tier: 0 = no deps, 1+ = depends on lower tiers
+   */
+  tier: number
+  /**
+   * True if this content type is part of a circular dependency
+   */
+  circular: boolean
 }
+
+export interface TierGroup {
+  tier: number
+  circular: boolean
+  description: string
+  contentTypes: ContentTypeTranslationReport[]
+}
+
+export interface TieredReportData {
+  tiers: TierGroup[]
+  locales: Locale[]
+}
+
+/** @deprecated Use TieredReportData instead */
 export interface ReportData {
   contentTypes: ContentTypeTranslationReport[]
   locales: Locale[]

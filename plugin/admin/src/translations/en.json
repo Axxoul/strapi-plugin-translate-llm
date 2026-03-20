@@ -48,5 +48,10 @@
   "usage.failed-to-load": "failed to load usage data",
   "usage.characters-used": "characters used",
   "usage.estimatedUsage": "This action is expected to increase your API usage by: ",
-  "usage.estimatedUsageExceedsQuota": "This action is expected to exceed your API Quota"
+  "usage.estimatedUsageExceedsQuota": "This action is expected to exceed your API Quota",
+  "batch-translate.tier.label": "Tier {tier}",
+  "batch-translate.tier.0.description": "No localized relation dependencies — translate these first",
+  "batch-translate.tier.n.description": "Depends on types in tiers 0 through {maxTier}",
+  "batch-translate.tier.circular.label": "Circular Dependencies",
+  "batch-translate.tier.circular.description": "These content types reference each other. You may need to translate them multiple times for all relations to resolve."
 }
