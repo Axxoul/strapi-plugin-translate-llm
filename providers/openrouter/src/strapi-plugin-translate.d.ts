@@ -1,4 +1,4 @@
-declare module 'strapi-plugin-translate/shared' {
+declare module 'strapi-plugin-translate-llm/shared' {
   export type TranslateProviderOptions = Record<string, any>
 
   export interface TranslateProviderTranslationArguments {

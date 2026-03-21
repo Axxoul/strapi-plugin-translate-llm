@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import Bottleneck from 'bottleneck'
-import { TranslateProvider } from 'strapi-plugin-translate/shared'
+import { TranslateProvider } from 'strapi-plugin-translate-llm/shared'
 
 import {
   OPENROUTER_API_URL,

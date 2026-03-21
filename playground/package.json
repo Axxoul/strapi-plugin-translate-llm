@@ -28,7 +28,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.0.0",
-    "strapi-plugin-translate": "*",
+    "strapi-plugin-translate-llm": "*",
     "strapi-provider-translate-deepl": "*",
     "strapi-provider-translate-libretranslate": "*",
     "styled-components": "^6.0.0"

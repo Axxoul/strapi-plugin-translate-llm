@@ -5,4 +5,7 @@ module.exports = {
   displayName: 'OpenRouter',
   collectCoverageFrom: ['./src/lib/**/*.ts'],
   transformIgnorePatterns: ['node_modules/(?!(until-async)/)'],
+  moduleNameMapper: {
+    '^strapi-plugin-translate-llm/(.*)$': '<rootDir>/../../plugin/$1',
+  },
 }

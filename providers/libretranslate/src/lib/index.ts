@@ -3,7 +3,7 @@ import Bottleneck from 'bottleneck'
 import { LT_PRIORITY_DEFAULT } from './constants'
 import { Client } from './client'
 import { getService } from './get-service'
-import { TranslateProvider } from 'strapi-plugin-translate/shared'
+import { TranslateProvider } from 'strapi-plugin-translate-llm/shared'
 
 /**
  * Module dependencies

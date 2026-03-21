@@ -67,7 +67,7 @@
   },
   "peerDependencies": {
     "lodash": "*",
-    "strapi-plugin-translate": "*"
+    "strapi-plugin-translate-llm": "*"
   },
   "engines": {
     "node": ">=18 <=22",

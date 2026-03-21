@@ -1,6 +1,6 @@
 {
   "name": "strapi-provider-translate-openrouter",
-  "version": "0.0.0-semantically-released",
+  "version": "1.0.2",
   "description": "OpenRouter LLM provider for translate plugin in Strapi 5",
   "keywords": [
     "strapi",
@@ -9,13 +9,13 @@
     "openrouter",
     "llm"
   ],
-  "homepage": "https://github.com/fekide/strapi-plugin-translate",
+  "homepage": "https://github.com/Axxoul/strapi-plugin-translate-llm",
   "bugs": {
-    "url": "https://github.com/fekide/strapi-plugin-translate/issues"
+    "url": "https://github.com/Axxoul/strapi-plugin-translate-llm/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/fekide/strapi-plugin-translate.git"
+    "url": "https://github.com/Axxoul/strapi-plugin-translate-llm.git"
   },
   "license": "MIT",
   "author": {
@@ -61,7 +61,7 @@
   },
   "peerDependencies": {
     "lodash": "*",
-    "strapi-plugin-translate": "*"
+    "strapi-plugin-translate-llm": "*"
   },
   "engines": {
     "node": ">=18 <=22",

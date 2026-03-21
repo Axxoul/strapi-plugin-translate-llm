@@ -1,6 +1,6 @@
 import { SourceLanguageCode, TargetLanguageCode, Translator } from 'deepl-node'
 import Bottleneck from 'bottleneck'
-import { TranslateProvider } from 'strapi-plugin-translate/shared'
+import { TranslateProvider } from 'strapi-plugin-translate-llm/shared'
 
 import {
   DEEPL_PRIORITY_DEFAULT,

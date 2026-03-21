@@ -8,7 +8,7 @@ import { SetupServer } from 'msw/node'
 import {
   InitializedProvider,
   TranslateProviderTranslationArguments,
-} from 'strapi-plugin-translate/shared'
+} from 'strapi-plugin-translate-llm/shared'
 import setup from '../../__mocks__/initStrapi'
 
 const BASE_URL = 'https://lt.example.org'

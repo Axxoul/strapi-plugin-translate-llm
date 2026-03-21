@@ -1,6 +1,6 @@
 import { URLSearchParams } from 'url'
 import { faker } from '@faker-js/faker'
-import { stringByteLength } from 'strapi-plugin-translate/strapi-server'
+import { stringByteLength } from 'strapi-plugin-translate-llm/strapi-server'
 import {
   DefaultBodyType,
   http,
@@ -21,7 +21,7 @@ import { SetupServer } from 'msw/node'
 import {
   InitializedProvider,
   TranslateProviderTranslationArguments,
-} from 'strapi-plugin-translate/shared'
+} from 'strapi-plugin-translate-llm/shared'
 import { TranslateTextOptions } from 'deepl-node'
 import setup from '../../__mocks__/initStrapi'
 

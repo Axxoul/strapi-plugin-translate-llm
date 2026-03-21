@@ -1,5 +1,5 @@
 import { get, set } from 'lodash'
-import translatePlugin from 'strapi-plugin-translate/strapi-server'
+import translatePlugin from 'strapi-plugin-translate-llm/strapi-server'
 
 const initSetup = async () => {
   const translate = translatePlugin()
