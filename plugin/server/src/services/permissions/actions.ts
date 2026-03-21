@@ -17,4 +17,10 @@ export const actions = [
     displayName: 'Usage',
     uid: 'usage',
   },
+  {
+    section: 'plugins',
+    pluginName: 'translate',
+    displayName: 'Settings',
+    uid: 'settings',
+  },
 ]

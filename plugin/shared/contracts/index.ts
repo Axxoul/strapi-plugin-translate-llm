@@ -1,4 +1,5 @@
 export * from './locales'
 export * from './provider'
+export * from './settings'
 export * from './translate'
 export * from './updated-entry'

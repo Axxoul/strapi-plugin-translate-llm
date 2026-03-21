@@ -1,51 +1,20 @@
 import type { Core } from '@strapi/strapi'
 
-import { toLower } from 'lodash'
-
 import { actions } from './services/permissions/actions'
 import { getService } from './utils/get-service'
 import { TranslateConfig } from './config'
-import { TranslateProvider } from '../../shared/types/provider'
-import dummyProvider from './utils/dummy-provider'
-
-const createProvider = async (translateConfig: TranslateConfig) => {
-  const providerName = toLower(translateConfig.provider)
-  let provider: TranslateProvider
-
-  if (providerName === 'dummy') {
-    provider = dummyProvider
-  } else {
-    let modulePath: string
-    const moduleName = `strapi-provider-translate-${providerName}`
-    try {
-      modulePath = require.resolve(moduleName, {
-        paths: [process.cwd(), __dirname],
-      })
-    } catch (error) {
-      if (error.code === 'MODULE_NOT_FOUND') {
-        modulePath = providerName
-      } else {
-        throw error
-      }
-    }
-
-    try {
-      provider = require(modulePath)
-    } catch (err) {
-      console.error(err)
-      throw new Error(
-        `Could not load translate provider "${providerName}": ${err instanceof Error ? err.message : err}`
-      )
-    }
-  }
-
-  return provider.init(translateConfig.providerOptions)
-}
+import { createProvider } from './utils/create-provider'
 
 const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
   const translateConfig =
     strapi.config.get<TranslateConfig>('plugin::translate')
-  strapi.plugin('translate').provider = await createProvider(translateConfig)
+
+  // Merge file config with DB-stored settings (UI overrides)
+  const mergedOptions = await getService('settings').getMergedProviderOptions()
+  strapi.plugin('translate').provider = await createProvider(
+    translateConfig.provider,
+    mergedOptions
+  )
 
   // Listen for updates to entries, mark them as updated
   strapi.db.lifecycles.subscribe({

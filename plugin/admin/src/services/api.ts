@@ -7,6 +7,7 @@ const translateApi = adminApi.enhanceEndpoints({
     'TranslateProviderUsage',
     'TranslateBatchJobStatus',
     'TranslateBatchUpdates',
+    'TranslateSettings',
     'Locale',
   ],
 })
