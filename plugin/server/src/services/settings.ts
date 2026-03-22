@@ -1,6 +1,7 @@
 import { Core } from '@strapi/strapi'
 import { TranslateConfig } from '../config'
 import { ProviderSettingsData } from '../../../shared/contracts/settings'
+import { AutoTranslateSettings } from '../../../shared/contracts/auto-translate'
 import { createProvider } from '../utils/create-provider'
 
 const STORE_KEY = 'provider_settings'

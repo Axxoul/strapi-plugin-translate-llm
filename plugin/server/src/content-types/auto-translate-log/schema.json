@@ -1,0 +1,50 @@
+{
+  "kind": "collectionType",
+  "collectionName": "translate_auto_translate_logs",
+  "info": {
+    "singularName": "auto-translate-log",
+    "pluralName": "auto-translate-logs",
+    "displayName": "Auto Translate Log"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "contentType": {
+      "type": "string",
+      "required": true
+    },
+    "entryDocumentId": {
+      "type": "string",
+      "required": true
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "sourceLocale": {
+      "type": "string",
+      "required": true
+    },
+    "targetLocale": {
+      "type": "string",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["pending", "translating", "success", "failed"],
+      "default": "pending",
+      "required": true
+    },
+    "error": {
+      "type": "text"
+    }
+  }
+}

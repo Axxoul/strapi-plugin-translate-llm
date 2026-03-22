@@ -1,16 +1,31 @@
 import React, { useState, useEffect } from 'react'
-import { Box, Main, Flex, Typography, TextInput, Textarea, Button, Field } from '@strapi/design-system'
+import { Box, Main, Flex, Typography, TextInput, Textarea, Button, Field, Toggle, SingleSelect, SingleSelectOption } from '@strapi/design-system'
 import { Layouts } from '@strapi/strapi/admin'
 import { useIntl } from 'react-intl'
 import { useAlert } from '../Hooks/useAlert'
 import { useGetTranslateSettingsQuery, useUpdateTranslateSettingsMutation } from '../services/settings'
+import { useGetAutoTranslateSettingsQuery, useUpdateAutoTranslateSettingsMutation } from '../services/auto-translate'
+import { useGetI18NLocalesQuery } from '../services/locales'
 import { getTranslation } from '../utils/getTranslation'
+import { StatusPanel } from '../components/AutoTranslate/StatusPanel'
 
 const SettingsPage = () => {
   const { formatMessage } = useIntl()
   const { handleNotification } = useAlert()
   const { data: response, isLoading } = useGetTranslateSettingsQuery({})
   const [updateSettings, { isLoading: isSaving }] = useUpdateTranslateSettingsMutation()
+
+  // Auto-translate settings
+  const { data: autoTranslateResponse, isLoading: isAutoTranslateLoading } =
+    useGetAutoTranslateSettingsQuery()
+  const [updateAutoTranslateSettings, { isLoading: isSavingAutoTranslate }] =
+    useUpdateAutoTranslateSettingsMutation()
+  const { data: localesData } = useGetI18NLocalesQuery()
+  const locales: Array<{ code: string; name: string }> = Array.isArray(localesData)
+    ? localesData
+    : []
+
+  const autoTranslateSettings = (autoTranslateResponse as any)?.data ?? null
 
   const settings = (response as any)?.data ?? null
   const defaults = settings?.defaults
@@ -21,6 +36,10 @@ const SettingsPage = () => {
   const [temperature, setTemperature] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
   const [localeMapJson, setLocaleMapJson] = useState('')
+
+  // Auto-translate local state
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(false)
+  const [masterLocale, setMasterLocale] = useState('')
 
   useEffect(() => {
     if (settings) {
@@ -40,6 +59,13 @@ const SettingsPage = () => {
       )
     }
   }, [settings])
+
+  useEffect(() => {
+    if (autoTranslateSettings) {
+      setAutoTranslateEnabled(autoTranslateSettings.enabled ?? false)
+      setMasterLocale(autoTranslateSettings.masterLocale ?? '')
+    }
+  }, [autoTranslateSettings])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,6 +122,35 @@ const SettingsPage = () => {
         type: 'danger',
         id: getTranslation('settings.save.error'),
         defaultMessage: 'Failed to save settings',
+      })
+    }
+  }
+
+  const handleAutoTranslateSave = async () => {
+    if (autoTranslateEnabled && !masterLocale) {
+      handleNotification({
+        type: 'danger',
+        id: getTranslation('auto-translate.settings.masterLocale.required'),
+        defaultMessage: 'Master locale is required when auto-translate is enabled',
+      })
+      return
+    }
+
+    try {
+      await updateAutoTranslateSettings({
+        enabled: autoTranslateEnabled,
+        masterLocale,
+      }).unwrap()
+      handleNotification({
+        type: 'success',
+        id: getTranslation('auto-translate.settings.save.success'),
+        defaultMessage: 'Auto-translate settings saved',
+      })
+    } catch {
+      handleNotification({
+        type: 'danger',
+        id: getTranslation('auto-translate.settings.save.error'),
+        defaultMessage: 'Failed to save auto-translate settings',
       })
     }
   }
@@ -336,6 +391,108 @@ const SettingsPage = () => {
               </Field.Root>
             </Flex>
           </Box>
+
+          {/* Auto-Translate Settings */}
+          <Box
+            background="neutral0"
+            padding={6}
+            shadow="filterShadow"
+            hasRadius
+            marginTop={6}
+          >
+            <Flex direction="column" alignItems="stretch" gap={6}>
+              <Box paddingBottom={2}>
+                <Typography variant="sigma" textColor="neutral600">
+                  {formatMessage({
+                    id: getTranslation('auto-translate.settings.section'),
+                    defaultMessage: 'AUTO-TRANSLATE ON SAVE',
+                  })}
+                </Typography>
+                <Box paddingTop={1}>
+                  <Typography variant="pi" textColor="neutral500">
+                    {formatMessage({
+                      id: getTranslation('auto-translate.settings.description'),
+                      defaultMessage:
+                        'Automatically translate content to all locales when saved or published in the master locale. Translations run in the background.',
+                    })}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Field.Root>
+                <Flex gap={4} alignItems="center">
+                  <Toggle
+                    checked={autoTranslateEnabled}
+                    onChange={() => setAutoTranslateEnabled(!autoTranslateEnabled)}
+                    onLabel={formatMessage({
+                      id: getTranslation('auto-translate.settings.enabled.on'),
+                      defaultMessage: 'Enabled',
+                    })}
+                    offLabel={formatMessage({
+                      id: getTranslation('auto-translate.settings.enabled.off'),
+                      defaultMessage: 'Disabled',
+                    })}
+                  />
+                  <Field.Label>
+                    {formatMessage({
+                      id: getTranslation('auto-translate.settings.enabled.label'),
+                      defaultMessage: 'Enable auto-translate on save',
+                    })}
+                  </Field.Label>
+                </Flex>
+              </Field.Root>
+
+              <Field.Root
+                hint={formatMessage({
+                  id: getTranslation('auto-translate.settings.masterLocale.hint'),
+                  defaultMessage:
+                    'The source-of-truth locale. Only saves to this locale trigger auto-translation to all others.',
+                })}
+              >
+                <Field.Label>
+                  {formatMessage({
+                    id: getTranslation('auto-translate.settings.masterLocale.label'),
+                    defaultMessage: 'Master Locale',
+                  })}
+                </Field.Label>
+                <SingleSelect
+                  value={masterLocale}
+                  onChange={(value: string | number) => setMasterLocale(String(value))}
+                  placeholder={formatMessage({
+                    id: getTranslation('auto-translate.settings.masterLocale.placeholder'),
+                    defaultMessage: 'Select master locale',
+                  })}
+                >
+                  {locales.map((locale) => (
+                    <SingleSelectOption key={locale.code} value={locale.code}>
+                      {locale.name} ({locale.code})
+                    </SingleSelectOption>
+                  ))}
+                </SingleSelect>
+                <Field.Hint />
+              </Field.Root>
+
+              <Flex justifyContent="flex-end">
+                <Button
+                  onClick={handleAutoTranslateSave}
+                  loading={isSavingAutoTranslate}
+                  variant="secondary"
+                >
+                  {formatMessage({
+                    id: getTranslation('auto-translate.settings.save'),
+                    defaultMessage: 'Save Auto-Translate Settings',
+                  })}
+                </Button>
+              </Flex>
+            </Flex>
+          </Box>
+
+          {/* Auto-Translate Status Panel */}
+          {autoTranslateEnabled && (
+            <Box marginTop={6}>
+              <StatusPanel />
+            </Box>
+          )}
         </Layouts.Content>
       </form>
     </Main>

@@ -4,6 +4,13 @@ import { actions } from './services/permissions/actions'
 import { getService } from './utils/get-service'
 import { TranslateConfig } from './config'
 import { createProvider } from './utils/create-provider'
+import { registerAutoTranslateMiddleware } from './middlewares/auto-translate'
+
+const IGNORED_UIDS = [
+  'plugin::translate.auto-translate-log',
+  'plugin::translate.batch-translate-job',
+  'plugin::translate.updated-entry',
+]
 
 const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
   const translateConfig =
@@ -16,6 +23,16 @@ const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
     mergedOptions
   )
 
+  // Register auto-translate document service middleware
+  registerAutoTranslateMiddleware(strapi)
+
+  // Clean up old auto-translate logs (older than 7 days)
+  getService('auto-translate')
+    .cleanupOldLogs()
+    .catch((err: Error) =>
+      strapi.log.warn('[auto-translate] Log cleanup failed:', err)
+    )
+
   // Listen for updates to entries, mark them as updated
   strapi.db.lifecycles.subscribe({
     afterUpdate(event) {
@@ -23,6 +40,7 @@ const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
         // content type must not be on ignore list
         event?.model?.uid &&
         !translateConfig.ignoreUpdatedContentTypes.includes(event.model.uid) &&
+        !IGNORED_UIDS.includes(event.model.uid) &&
         // entity must have localizations
         event.result?.locale &&
         Array.isArray(event.result?.localizations) &&

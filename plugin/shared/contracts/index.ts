@@ -1,3 +1,4 @@
+export * from './auto-translate'
 export * from './locales'
 export * from './provider'
 export * from './settings'

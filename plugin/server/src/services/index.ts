@@ -1,3 +1,4 @@
+import autoTranslate from './auto-translate'
 import batchTranslateJob from './batch-translate-job'
 import chunks from './chunks'
 import provider from './provider'
@@ -8,6 +9,7 @@ import format from './format'
 import updatedEntry from './updated-entry'
 
 export default {
+  'auto-translate': autoTranslate,
   'batch-translate-job': batchTranslateJob,
   provider,
   settings,

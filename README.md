@@ -25,6 +25,7 @@ This is a fork of the excellent [strapi-plugin-translate](https://github.com/Fek
 | Feature | Original | This fork |
 |---------|----------|-----------|
 | **LLM translation** (Claude, GPT, Gemini, Llama, etc.) | Not available | [strapi-provider-translate-openrouter](https://www.npmjs.com/package/strapi-provider-translate-openrouter) — works with OpenRouter or any OpenAI-compatible API |
+| **Auto-translate on save** | Not available | Save in the master locale and all other locales are translated automatically in the background — like Strapi AI, but free and provider-agnostic |
 | **Custom translation instructions** | Not available | `customPrompt` option: tell the LLM to preserve brand names, use informal tone, handle domain terminology, etc. |
 | **Tiered batch translation** | Flat list — relations can silently break if you translate in the wrong order | Content types grouped by dependency tier, so you translate independent types first |
 | **HTTP timeout protection** | No protection for slow providers | Keep-alive heartbeat prevents Heroku/ALB timeouts during slow LLM calls |
@@ -159,6 +160,25 @@ Configure in the Content-Type Builder or in the schema file's `pluginOptions`:
 ```
 
 ## Features
+
+### Auto-translate on save (new)
+
+Automatically translate content to all locales when you save or publish in the master locale — similar to Strapi AI's paid feature, but open-source and works with any provider.
+
+1. Go to **Settings > Translate** in the Strapi admin panel
+2. Scroll to the **Auto-Translate on Save** section
+3. Toggle **Enable auto-translate on save** to on
+4. Select your **Master Locale** (e.g., Swedish)
+5. Click **Save Auto-Translate Settings**
+
+**How it works:**
+- When you save or publish content in the master locale, all other locales are translated in the background
+- Save returns immediately — translations happen asynchronously
+- Published content produces published translations; drafts produce draft translations
+- A real-time status panel on the settings page shows progress and errors
+- Errors are shown immediately (no silent failures, no automatic retry)
+- Rapid saves are debounced (300ms) to avoid redundant translations
+- Old translation logs are automatically cleaned up after 7 days
 
 ### Translate a single entity
 
