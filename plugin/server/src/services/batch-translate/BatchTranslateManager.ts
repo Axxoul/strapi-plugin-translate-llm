@@ -25,7 +25,7 @@ export class BatchTranslateManagerImpl implements BatchTranslateManager {
     sourceLocale: string
     targetLocale: string
     entityIds?: string[]
-    autoPublish?: boolean
+    autoPublish?: 'draft' | 'publish' | 'mirror'
   }) {
     const sameEntities = await strapi.service(batchContentTypeUid).find({
       filters: {
@@ -107,6 +107,22 @@ export class BatchTranslateManagerImpl implements BatchTranslateManager {
         .documents(batchContentTypeUid)
         .findOne({ documentId }) as Promise<BatchTranslateJob>
     } else {
+      // Job not in memory — force-cancel the DB record if it's in an active state
+      const entity = (await strapi
+        .documents(batchContentTypeUid)
+        .findOne({ documentId })) as BatchTranslateJob
+      if (
+        entity &&
+        ['created', 'setup', 'running', 'paused'].includes(entity.status)
+      ) {
+        await strapi
+          .documents(batchContentTypeUid)
+          .update({ documentId, data: { status: 'cancelled' } })
+        return {
+          ...entity,
+          status: 'cancelled' as const,
+        }
+      }
       throw new Error('translate.batch-translate.job-not-running')
     }
   }
