@@ -38,7 +38,7 @@ const batchTranslateBodySchema = z.object({
   contentType: z.string(),
   sourceLocale: z.string(),
   targetLocale: z.string(),
-  autoPublish: z.boolean(),
+  autoPublish: z.enum(['draft', 'publish', 'mirror']),
   entityIds: z.array(z.string()).optional(),
 })
 

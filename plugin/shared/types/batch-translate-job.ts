@@ -17,5 +17,5 @@ export interface BatchTranslateJob {
   entityIds?: Data.DocumentID[]
   sourceLocale: string
   targetLocale: string
-  autoPublish: boolean
+  autoPublish: 'draft' | 'publish' | 'mirror'
 }

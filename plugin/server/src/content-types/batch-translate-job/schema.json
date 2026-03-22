@@ -57,8 +57,9 @@
       "default": 0
     },
     "autoPublish": {
-      "type": "boolean",
-      "default": false
+      "type": "enumeration",
+      "enum": ["draft", "publish", "mirror"],
+      "default": "draft"
     }
   }
 }

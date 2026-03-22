@@ -6,7 +6,6 @@ import { Flex } from '@strapi/design-system'
 import { Typography } from '@strapi/design-system'
 import { SingleSelect, SingleSelectOption } from '@strapi/design-system'
 import { Button } from '@strapi/design-system'
-import { Toggle } from '@strapi/design-system'
 import useCollection from '../../Hooks/useCollection'
 import { getTranslation } from '../../utils'
 import useUsage from '../../Hooks/useUsage'
@@ -62,7 +61,7 @@ const CollectionTable = () => {
       setSourceLocale(defaultLocale)
     }
   }, [locales, sourceLocale])
-  const [autoPublish, setAutoPublish] = useState(false)
+  const [autoPublish, setAutoPublish] = useState<'draft' | 'publish' | 'mirror'>('draft')
   const [collection, setCollection] =
     useState<ContentTypeTranslationReport | null>(null)
   const [action, setAction] = useState<ActionType | null>(null)
@@ -115,8 +114,8 @@ const CollectionTable = () => {
     else console.error('Invalid value')
   }
 
-  const toggleAutoPublish = () => {
-    setAutoPublish(!autoPublish)
+  const handleAutoPublishChange = (value: string | number) => {
+    setAutoPublish(value as 'draft' | 'publish' | 'mirror')
   }
 
   const dialogFieldMissing = (field: string) => {
@@ -302,7 +301,7 @@ const CollectionTable = () => {
                           'batch-translate.dialog.translate.autoPublish.hint'
                         ),
                         defaultMessage:
-                          'Publish translated entities automatically',
+                          'Control the publish status of translated entities',
                       })}
                     >
                       <Field.Label>
@@ -310,15 +309,38 @@ const CollectionTable = () => {
                           id: getTranslation(
                             'batch-translate.dialog.translate.autoPublish.label'
                           ),
-                          defaultMessage: 'Auto-Publish',
+                          defaultMessage: 'Publish Mode',
                         })}
                       </Field.Label>
-                      <Toggle
-                        onLabel="True"
-                        offLabel="False"
-                        checked={autoPublish}
-                        onChange={toggleAutoPublish}
-                      />
+                      <SingleSelect
+                        value={autoPublish}
+                        onChange={handleAutoPublishChange}
+                      >
+                        <SingleSelectOption value="draft">
+                          {formatMessage({
+                            id: getTranslation(
+                              'batch-translate.dialog.translate.autoPublish.draft'
+                            ),
+                            defaultMessage: 'Save as draft',
+                          })}
+                        </SingleSelectOption>
+                        <SingleSelectOption value="publish">
+                          {formatMessage({
+                            id: getTranslation(
+                              'batch-translate.dialog.translate.autoPublish.publish'
+                            ),
+                            defaultMessage: 'Publish immediately',
+                          })}
+                        </SingleSelectOption>
+                        <SingleSelectOption value="mirror">
+                          {formatMessage({
+                            id: getTranslation(
+                              'batch-translate.dialog.translate.autoPublish.mirror'
+                            ),
+                            defaultMessage: 'Mirror source status',
+                          })}
+                        </SingleSelectOption>
+                      </SingleSelect>
                       <Field.Hint />
                     </Field.Root>
                     {expectedCost != null && usage && (

@@ -16,7 +16,7 @@ export class BatchTranslateJobExecutor {
   translatedEntities: number
   intervalId: null
   id: string
-  autoPublish: boolean
+  autoPublish: 'draft' | 'publish' | 'mirror'
   contentType: UID.ContentType
   contentTypeSchema: Struct.ContentTypeSchema
   sourceLocale: string
@@ -39,7 +39,7 @@ export class BatchTranslateJobExecutor {
     targetLocale,
     entityIds,
     status,
-    autoPublish = false,
+    autoPublish = 'draft',
   }: BatchTranslateJob) {
     this.totalEntities = 0
     this.translatedEntities = 0
@@ -242,6 +242,19 @@ export class BatchTranslateJobExecutor {
 
       // Translate the entity
       try {
+        // Resolve publish status based on autoPublish mode
+        let shouldPublish = this.autoPublish === 'publish'
+        if (this.autoPublish === 'mirror') {
+          const publishedDoc = await strapi
+            .documents(this.contentType)
+            .findOne({
+              documentId: entity.documentId,
+              locale: this.sourceLocale,
+              status: 'published',
+            })
+          shouldPublish = !!publishedDoc
+        }
+
         await getService('translate').translateEntity({
           documentId: entity.documentId,
           contentType: this.contentType,
@@ -249,7 +262,7 @@ export class BatchTranslateJobExecutor {
           targetLocale: this.targetLocale,
           create: true,
           updateExisting: false,
-          publish: this.autoPublish,
+          publish: shouldPublish,
           priority: TRANSLATE_PRIORITY_BATCH_TRANSLATION,
         })
         strapi.log.debug(

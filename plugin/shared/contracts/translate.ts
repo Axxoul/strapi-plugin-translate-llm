@@ -36,7 +36,7 @@ export declare namespace TranslateBatch {
       targetLocale: string
       contentType: UID.ContentType
       entityIds?: Data.DocumentID[]
-      autoPublish: boolean
+      autoPublish: 'draft' | 'publish' | 'mirror'
     }
   }
 
