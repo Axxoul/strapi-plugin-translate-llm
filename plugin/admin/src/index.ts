@@ -23,18 +23,29 @@ const admin: PluginDefinition = {
       permissions,
     })
 
-    app.addSettingsLink('global', {
-      intlLabel: {
-        id: `${PLUGIN_ID}.settings.page`,
-        defaultMessage: 'Translate',
+    app.createSettingSection(
+      {
+        id: PLUGIN_ID,
+        intlLabel: {
+          id: `${PLUGIN_ID}.settings.section`,
+          defaultMessage: 'Translate Plugin',
+        },
       },
-      id: `${PLUGIN_ID}-settings`,
-      to: PLUGIN_ID,
-      Component: () => import('./pages/SettingsPage'),
-      permissions: [
-        { action: 'plugin::translate.settings', subject: null },
-      ],
-    })
+      [
+        {
+          intlLabel: {
+            id: `${PLUGIN_ID}.settings.page`,
+            defaultMessage: 'Configuration',
+          },
+          id: `${PLUGIN_ID}-settings`,
+          to: PLUGIN_ID,
+          Component: () => import('./pages/SettingsPage'),
+          permissions: [
+            { action: 'plugin::translate.settings', subject: null },
+          ],
+        },
+      ]
+    )
 
     app.registerPlugin({
       id: PLUGIN_ID,
