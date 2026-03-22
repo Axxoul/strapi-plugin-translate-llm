@@ -63,6 +63,7 @@ module.exports = ({ env }) => ({
 | Feature | Original | This fork |
 |---------|----------|-----------|
 | **LLM translation** (Claude, GPT, Gemini, etc.) | Not available | via [strapi-provider-translate-openrouter](https://www.npmjs.com/package/strapi-provider-translate-openrouter) |
+| **Auto-translate on save/publish** | Not available | Automatic background translation when master locale is saved |
 | **Custom translation instructions** | Not available | `customPrompt` option |
 | **Tiered batch translation** | Flat list | Grouped by dependency tier |
 | **HTTP timeout protection** | None | Keep-alive heartbeat for slow providers |
@@ -74,9 +75,19 @@ module.exports = ({ env }) => ({
 - [strapi-provider-translate-deepl](https://www.npmjs.com/package/strapi-provider-translate-deepl) — DeepL machine translation
 - [strapi-provider-translate-libretranslate](https://www.npmjs.com/package/strapi-provider-translate-libretranslate) — self-hosted machine translation
 
+## Auto-Translate
+
+Automatically translate content when saving or publishing in the master locale — no manual action needed.
+
+1. Go to **Settings → Translate** in Strapi admin
+2. Enable **Auto-translate on save**
+3. Select your **master locale** (e.g. English)
+
+When you save or publish content in the master locale, all other locales are translated in the background. A real-time status panel in the Settings page shows translation progress and any errors.
+
 ## Credits
 
-Fork of [strapi-plugin-translate](https://github.com/Fekide/strapi-plugin-translate) by Felix Haase. LLM provider and tiered UI by [Axel Erwast](https://github.com/Axxoul).
+Fork of [strapi-plugin-translate](https://github.com/Fekide/strapi-plugin-translate) by Felix Haase. LLM provider, auto-translate, and tiered UI by [Axel Erwast](https://github.com/Axxoul).
 
 ## License
 

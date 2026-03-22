@@ -1,6 +1,6 @@
 {
   "name": "strapi-plugin-translate-llm",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Strapi plugin for managing and automating translation of content",
   "keywords": [
     "strapi",
@@ -93,24 +93,26 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/fekide/strapi-plugin-translate.git"
+    "url": "git+ssh://git@github.com/Axxoul/strapi-plugin-translate-llm.git"
   },
   "engines": {
     "node": ">=18 <=22",
     "npm": ">=6.0.0"
   },
   "bugs": {
-    "url": "https://github.com/fekide/strapi-plugin-translate/issues"
+    "url": "https://github.com/Axxoul/strapi-plugin-translate-llm/issues"
   },
-  "homepage": "https://github.com/fekide/strapi-plugin-translate#readme",
+  "homepage": "https://github.com/Axxoul/strapi-plugin-translate-llm#readme",
   "author": {
-    "name": "Felix Haase",
-    "email": "felix.haase@feki.de"
+    "name": "Axel Erwast"
   },
-  "maintainers": [
+  "contributors": [
     {
-      "name": "Yannick Lang",
-      "email": "yannick.lang@feki.de"
+      "name": "Felix Haase",
+      "url": "https://github.com/Fekide/strapi-plugin-translate"
+    },
+    {
+      "name": "Yannick Lang"
     }
   ]
 }
