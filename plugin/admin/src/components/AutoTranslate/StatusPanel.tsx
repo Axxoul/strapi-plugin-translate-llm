@@ -8,6 +8,7 @@ import {
   Badge,
 } from '@strapi/design-system'
 import { Cross, Check, WarningCircle } from '@strapi/icons'
+import { Link } from 'react-router-dom'
 import { useIntl } from 'react-intl'
 import {
   useGetAutoTranslateLogsQuery,
@@ -43,6 +44,29 @@ function statusColor(
   }
 }
 
+/**
+ * Build a link to the content manager entry for a given content type + documentId + locale.
+ * Strapi v5 content manager URL pattern:
+ *   /admin/content-manager/collection-types/:contentType/:documentId?plugins[i18n][locale]=:locale
+ */
+function buildEntityLink(
+  contentType: string,
+  entryDocumentId: string,
+  targetLocale: string
+): string {
+  return `/content-manager/collection-types/${contentType}/${entryDocumentId}?plugins[i18n][locale]=${targetLocale}`
+}
+
+/**
+ * Extract a short, human-readable content type name from the full UID.
+ * e.g. "api::article.article" -> "Article"
+ */
+function shortContentType(uid: string): string {
+  const parts = uid.split('.')
+  const last = parts[parts.length - 1] || uid
+  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, ' ')
+}
+
 const StatusPanel = () => {
   const { formatMessage } = useIntl()
   const { data: response, isLoading } = useGetAutoTranslateLogsQuery(
@@ -67,13 +91,24 @@ const StatusPanel = () => {
         padding={4}
         shadow="filterShadow"
         hasRadius
+        height="100%"
       >
-        <Typography variant="omega" textColor="neutral600">
-          {formatMessage({
-            id: getTranslation('auto-translate.logs.empty'),
-            defaultMessage: 'No recent auto-translations',
-          })}
-        </Typography>
+        <Flex direction="column" alignItems="stretch" height="100%">
+          <Typography variant="sigma" textColor="neutral600">
+            {formatMessage({
+              id: getTranslation('auto-translate.logs.title'),
+              defaultMessage: 'RECENT AUTO-TRANSLATIONS',
+            })}
+          </Typography>
+          <Flex flex="1" alignItems="center" justifyContent="center" paddingTop={4}>
+            <Typography variant="omega" textColor="neutral600">
+              {formatMessage({
+                id: getTranslation('auto-translate.logs.empty'),
+                defaultMessage: 'No recent auto-translations',
+              })}
+            </Typography>
+          </Flex>
+        </Flex>
       </Box>
     )
   }
@@ -84,6 +119,7 @@ const StatusPanel = () => {
       padding={4}
       shadow="filterShadow"
       hasRadius
+      height="100%"
     >
       <Flex justifyContent="space-between" alignItems="center" paddingBottom={3}>
         <Flex gap={2} alignItems="center">
@@ -128,19 +164,38 @@ const StatusPanel = () => {
             <Flex justifyContent="space-between" alignItems="center">
               <Flex gap={2} alignItems="center">
                 <StatusIcon status={log.status} />
-                <Typography variant="omega">
-                  {log.displayName || log.contentType}
-                </Typography>
-                <Typography variant="pi" textColor="neutral500">
-                  {log.sourceLocale} &rarr; {log.targetLocale}
-                </Typography>
+                <Link
+                  to={buildEntityLink(log.contentType, log.entryDocumentId, log.targetLocale)}
+                  style={{ textDecoration: 'none', color: 'inherit' }}
+                >
+                  <Typography variant="omega" fontWeight="semiBold" textColor="primary600">
+                    {log.displayName || shortContentType(log.contentType)}
+                  </Typography>
+                </Link>
               </Flex>
-              <Typography variant="pi" textColor="neutral500">
+              <Badge
+                backgroundColor={statusColor(log.status)}
+                textColor={
+                  log.status === 'success'
+                    ? 'success700'
+                    : log.status === 'failed'
+                      ? 'danger700'
+                      : 'neutral700'
+                }
+              >
                 {log.status}
-              </Typography>
+              </Badge>
             </Flex>
+            <Box paddingTop={1} paddingLeft={6}>
+              <Typography variant="pi" textColor="neutral500">
+                {log.sourceLocale} &rarr; {log.targetLocale}
+              </Typography>
+              <Typography variant="pi" textColor="neutral400">
+                {' '}&middot;{' '}{shortContentType(log.contentType)}
+              </Typography>
+            </Box>
             {log.status === 'failed' && log.error && (
-              <Box paddingTop={1}>
+              <Box paddingTop={1} paddingLeft={6}>
                 <Typography variant="pi" textColor="danger600">
                   {log.error}
                 </Typography>

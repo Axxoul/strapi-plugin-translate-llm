@@ -138,9 +138,29 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 
     if (targetLocales.length === 0) return
 
-    // Get a display name for the log
+    // Get a display name from the actual document (use mainField or fallback to content type name)
     const ct = strapi.contentTypes[contentType]
-    const displayName = ct?.info?.displayName || contentType
+    const ctDisplayName = ct?.info?.displayName || contentType
+    let displayName = ctDisplayName
+
+    try {
+      const mainField =
+        (ct as any)?.pluginOptions?.['content-manager']?.mainField || 'title'
+      const doc = await strapi.documents(contentType as any).findOne({
+        documentId,
+        locale: sourceLocale,
+        fields: [mainField, 'title', 'name'] as any,
+      })
+      if (doc) {
+        displayName =
+          (doc as any)[mainField] ||
+          (doc as any).title ||
+          (doc as any).name ||
+          ctDisplayName
+      }
+    } catch {
+      // fallback to content type display name
+    }
 
     // Create log entries for all target locales
     const logEntries: Array<{ documentId: string; targetLocale: string }> = []
