@@ -68,6 +68,11 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
           return
         }
 
+        const maxLengths = groupedFields[format].map(
+          ({ maxLength }) => maxLength
+        )
+        const hasAnyMaxLength = maxLengths.some((ml) => ml != null)
+
         const translateResult = await strapi
           .plugin('translate')
           .provider.translate({
@@ -76,10 +81,22 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
             sourceLocale,
             priority,
             format,
+            ...(hasAnyMaxLength && { maxLengths }),
           })
 
-        groupedFields[format].forEach(({ field }, index) => {
-          set(translatedData, field, translateResult[index])
+        groupedFields[format].forEach(({ field, maxLength }, index) => {
+          let value = translateResult[index]
+          if (
+            maxLength != null &&
+            typeof value === 'string' &&
+            value.length > maxLength
+          ) {
+            strapi.log.warn(
+              `[translate] "${field}" exceeded maxLength (${value.length}/${maxLength}), truncating`
+            )
+            value = value.substring(0, maxLength)
+          }
+          set(translatedData, field, value)
         })
       })
     )

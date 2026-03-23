@@ -67,6 +67,7 @@ module.exports = ({ env }) => ({
 | **Custom translation instructions** | Not available | `customPrompt` option |
 | **Tiered batch translation** | Flat list | Grouped by dependency tier |
 | **HTTP timeout protection** | None | Keep-alive heartbeat for slow providers |
+| **Field maxLength enforcement** | Not available | Auto-truncates translations exceeding field character limits |
 | **Retry logic** | Provider-specific | Built-in exponential backoff |
 
 ## Available Providers

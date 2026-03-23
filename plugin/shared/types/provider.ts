@@ -12,6 +12,7 @@ export interface TranslateProviderTranslationArguments {
   readonly format?: 'plain' | 'markdown' | 'html' | 'jsonb'
   readonly sourceLocale: string
   readonly targetLocale: string
+  readonly maxLengths?: (number | undefined)[]
 }
 
 export type TranslateProviderTranslationResult =

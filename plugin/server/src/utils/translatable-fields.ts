@@ -61,9 +61,10 @@ export async function getTranslateFields<TSchemaUID extends UID.ContentType>(
           schema as Attribute.Component,
           _.get(data, attr, undefined)
         )
-      ).map(({ field, format }) => ({
+      ).map(({ field, format, maxLength }) => ({
         field: `${attr}.${field}`,
         format,
+        ...(maxLength != null && { maxLength }),
       }))
     } else if (schema.type == 'dynamiczone') {
       return flatten_and_compact(
@@ -71,9 +72,10 @@ export async function getTranslateFields<TSchemaUID extends UID.ContentType>(
           data[attr].map(async (object, index) => {
             return (
               await recursiveComponentFieldsToTranslate(schema, object)
-            ).map(({ field, format }) => ({
+            ).map(({ field, format, maxLength }) => ({
               field: `${attr}.${index}.${field}`,
               format,
+              ...(maxLength != null && { maxLength }),
             }))
           })
         )
@@ -86,6 +88,9 @@ export async function getTranslateFields<TSchemaUID extends UID.ContentType>(
       return {
         field: attr,
         format: getFieldTypeFormat(schema.type),
+        ...((schema as any).maxLength != null && {
+          maxLength: (schema as any).maxLength,
+        }),
       }
     }
   }

@@ -13,7 +13,8 @@ export function buildSystemPrompt(
   sourceLocale: string,
   targetLocale: string,
   format: Format = 'plain',
-  customPrompt?: string
+  customPrompt?: string,
+  hasMaxLengths?: boolean
 ): string {
   const formatRule = FORMAT_RULES[format] || FORMAT_RULES.plain
 
@@ -27,6 +28,12 @@ export function buildSystemPrompt(
     '- Return valid JSON only: { "translations": [...] } where the array matches the input array in order and count.',
     '- Each element in the output array must correspond to the element at the same index in the input array.',
   ]
+
+  if (hasMaxLengths) {
+    lines.push(
+      '- Some texts have a maximum character length. When a "maxLengths" array is present in the input, each non-null value indicates the maximum character count for the corresponding text. Keep translations within these limits using concise, natural phrasing.'
+    )
+  }
 
   if (customPrompt) {
     lines.push('', 'Additional instructions:', customPrompt)

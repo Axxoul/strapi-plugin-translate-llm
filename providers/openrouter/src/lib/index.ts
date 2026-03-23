@@ -92,16 +92,23 @@ export default {
       texts: string[],
       sourceLocale: string,
       targetLocale: string,
-      format: string
+      format: string,
+      chunkMaxLengths?: (number | undefined)[]
     ): Promise<string[]> {
+      const hasMaxLengths = chunkMaxLengths?.some((ml) => ml != null)
       const systemPrompt = buildSystemPrompt(
         resolveLocaleName(sourceLocale, localeMap),
         resolveLocaleName(targetLocale, localeMap),
         format as any,
-        customPrompt
+        customPrompt,
+        hasMaxLengths
       )
 
-      const userMessage = JSON.stringify({ texts })
+      const userPayload: Record<string, unknown> = { texts }
+      if (hasMaxLengths) {
+        userPayload.maxLengths = chunkMaxLengths
+      }
+      const userMessage = JSON.stringify(userPayload)
 
       const response = await withRetry(() =>
         client.chat.completions.create({
@@ -165,7 +172,14 @@ export default {
     const rateLimitedCallLLM = limiter.wrap(callLLM)
 
     return {
-      async translate({ text, priority, sourceLocale, targetLocale, format }) {
+      async translate({
+        text,
+        priority,
+        sourceLocale,
+        targetLocale,
+        format,
+        maxLengths,
+      }) {
         if (!text) {
           return []
         }
@@ -203,9 +217,20 @@ export default {
           maxByteSize: OPENROUTER_ROUGH_MAX_REQUEST_SIZE,
         })
 
+        // Split maxLengths in parallel with text chunks
+        let maxLengthChunks: ((number | undefined)[] | undefined)[] | undefined
+        if (maxLengths?.length) {
+          maxLengthChunks = []
+          let offset = 0
+          for (const chunk of chunks) {
+            maxLengthChunks.push(maxLengths.slice(offset, offset + chunk.length))
+            offset += chunk.length
+          }
+        }
+
         const result = reduceFunction(
           await Promise.all(
-            chunks.map((texts: string[]) =>
+            chunks.map((texts: string[], chunkIndex: number) =>
               rateLimitedCallLLM.withOptions(
                 {
                   priority:
@@ -216,7 +241,8 @@ export default {
                 texts,
                 sourceLocale,
                 targetLocale,
-                effectiveFormat
+                effectiveFormat,
+                maxLengthChunks?.[chunkIndex]
               )
             )
           )
