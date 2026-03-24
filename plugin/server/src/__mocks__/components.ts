@@ -57,6 +57,20 @@ export const twoFieldComponent = {
   },
 }
 
+export const componentWithPrivateField = {
+  attributes: {
+    text: {
+      pluginOptions: {
+        translate: {
+          translate: 'translate',
+        },
+      },
+      type: 'richtext',
+    },
+    secret: { type: 'string', private: true },
+  },
+}
+
 export function createComponentWithRelation(relationType, target) {
   return {
     attributes: {

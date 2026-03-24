@@ -6,12 +6,14 @@ import {
   nestedComponent,
   twoFieldComponent,
   createComponentWithRelation,
+  componentWithPrivateField,
 } from '../../__mocks__/components'
 import {
   simpleContentType,
   createRelationContentType,
   createContentTypeWithComponent,
   createContentTypeWithDynamicZone,
+  createContentTypeWithPrivateField,
 } from '../../__mocks__/contentTypes'
 import setup from '../../__mocks__/initSetup'
 
@@ -316,6 +318,84 @@ describe('clean data', () => {
           number: 123,
         },
       ],
+    })
+  })
+})
+
+describe('clean data - private fields', () => {
+  beforeEach(
+    async () =>
+      await setup({
+        components: {
+          simple: simpleComponent,
+          'with-private': componentWithPrivateField,
+        },
+        contentTypes: {
+          'api::with-private.with-private': createContentTypeWithPrivateField(
+            'api::with-private.with-private'
+          ),
+          'api::complex.component-private': createContentTypeWithComponent(
+            'with-private',
+            {}
+          ),
+        },
+      })
+  )
+
+  it('private field stripped when saving (forFrontend=false)', () => {
+    const data = {
+      documentId: 'a',
+      id: 1,
+      title: 'hello',
+      city_temp: 'some value',
+    }
+    const schema = strapi.contentTypes['api::with-private.with-private']
+
+    const cleanedData = cleanData(data, schema, false)
+
+    expect(cleanedData).toEqual({
+      documentId: 'a',
+      title: 'hello',
+    })
+  })
+
+  it('private field kept for frontend (forFrontend=true)', () => {
+    const data = {
+      documentId: 'a',
+      id: 1,
+      title: 'hello',
+      city_temp: 'some value',
+    }
+    const schema = strapi.contentTypes['api::with-private.with-private']
+
+    const cleanedData = cleanData(data, schema, true)
+
+    expect(cleanedData).toEqual({
+      documentId: 'a',
+      title: 'hello',
+      city_temp: 'some value',
+    })
+  })
+
+  it('private field in component stripped recursively', () => {
+    const data = {
+      documentId: 'a',
+      id: 1,
+      component: {
+        text: 'test',
+        secret: 'sensitive',
+        id: 1,
+      },
+    }
+    const schema = strapi.contentTypes['api::complex.component-private']
+
+    const cleanedData = cleanData(data, schema, false)
+
+    expect(cleanedData).toEqual({
+      documentId: 'a',
+      component: {
+        text: 'test',
+      },
     })
   })
 })

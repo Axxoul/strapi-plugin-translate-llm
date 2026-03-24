@@ -254,6 +254,29 @@ export function createContentTypeWithDynamicZone(
   }
 }
 
+export function createContentTypeWithPrivateField(
+  uid: UID.ContentType = 'api::simple.simple'
+): Struct.ContentTypeSchema {
+  return {
+    modelType: 'contentType',
+    uid,
+    globalId: 'Simple',
+    options: { draftAndPublish: true },
+    info: {
+      displayName: 'Simple',
+      pluralName: 'Simples',
+      singularName: 'Simple',
+    },
+    modelName: 'simple',
+    pluginOptions: { i18n: { localized: true } },
+    kind: 'collectionType',
+    attributes: {
+      title: { type: 'string' },
+      city_temp: { type: 'string', private: true },
+    },
+  }
+}
+
 export const complexContentType: Struct.ContentTypeSchema = {
   modelType: 'contentType',
   uid: 'api::complex.complex',

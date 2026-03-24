@@ -25,6 +25,21 @@ export function deleteInvalidFields<TSchemaUID extends UID.ContentType>(
   })
 }
 
+function deletePrivateFields(
+  data: Modules.Documents.Document<any>,
+  schema: ContentTypeSchema | ComponentSchema
+) {
+  if (!data) {
+    return
+  }
+  const attributesSchema = get(schema, 'attributes', {})
+  Object.keys(attributesSchema).forEach((attr) => {
+    if (attributesSchema[attr].private === true && attr in data) {
+      delete data[attr]
+    }
+  })
+}
+
 /**
  * Clean the data based on the schema to only include fields for input and flatten relations
  * @param {object} data The data to clean
@@ -46,6 +61,9 @@ export function cleanData<
   const resultData = cloneDeep(data)
 
   deleteInvalidFields(resultData, schema)
+  if (!forFrontend) {
+    deletePrivateFields(resultData, schema)
+  }
 
   const attributesSchema = get(schema, 'attributes', [])
 
