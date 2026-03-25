@@ -5,7 +5,7 @@ import UsageOverview from './Usage'
 
 const PluginPage = () => {
   return (
-    <Box padding={8} margin={10} background="neutral">
+    <Box padding={8} background="neutral">
       <CollectionTable />
       <UsageOverview />
     </Box>

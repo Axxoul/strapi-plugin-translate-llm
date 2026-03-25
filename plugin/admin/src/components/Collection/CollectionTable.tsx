@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect } from 'react'
-import { Field } from '@strapi/design-system'
+import { Box, Field } from '@strapi/design-system'
 import { Modal } from '@strapi/design-system'
 import { useIntl } from 'react-intl'
 import { Flex } from '@strapi/design-system'
@@ -30,7 +30,7 @@ type HandleActionProps = {
 }
 
 const CollectionTable = () => {
-  const { collections, tiers, locales } = useCollection()
+  const { collections, tiers, locales, refetchCollection } = useCollection()
   const { formatMessage } = useIntl()
   const { handleNotification } = useAlert()
   const {
@@ -233,6 +233,14 @@ const CollectionTable = () => {
 
   return (
     <div>
+      <Flex justifyContent="flex-end" paddingBottom={2}>
+        <Button variant="tertiary" onClick={() => refetchCollection()}>
+          {formatMessage({
+            id: getTranslation('batch-translate.reload'),
+            defaultMessage: 'Reload entry counts',
+          })}
+        </Button>
+      </Flex>
       {tiers.map((tierGroup) => (
         <div key={tierGroup.tier}>
           <TierHeader
