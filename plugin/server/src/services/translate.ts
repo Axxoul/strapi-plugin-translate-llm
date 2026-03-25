@@ -6,6 +6,7 @@ import { geti18nService, getService } from '../utils/get-service'
 import { getAllTranslatableFields } from '../utils/translatable-fields'
 import { filterAllDeletedFields } from '../utils/delete-fields'
 import { cleanData } from '../utils/clean-data'
+import { enforceMaxLengths } from '../utils/enforce-max-lengths'
 import { TRANSLATE_PRIORITY_BATCH_TRANSLATION } from '../utils/constants'
 import { updateUids } from '../utils/update-uids'
 import { BatchTranslateManagerImpl } from './batch-translate'
@@ -182,6 +183,8 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
         contentSchema,
         false
       )
+
+      enforceMaxLengths(cleanedData as Record<string, any>, contentSchema)
 
       if (collectionType) {
         await strapi.documents(params.contentType).update({
