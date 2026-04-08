@@ -169,4 +169,85 @@ describe('BatchTranslateJob', () => {
       expect(f).toHaveBeenCalledWith('finished')
     })
   })
+
+  describe('continue-on-error', () => {
+    it('logs a failure and continues when translateEntity throws for one entity', async () => {
+      // Three entities, translateEntity throws on the second one.
+      const ids = ['a', 'b', 'c']
+      const translateEntity = jest.fn(async ({ documentId }) => {
+        if (documentId === 'b') {
+          throw new Error('simulated provider failure on b')
+        }
+      })
+      const createFailure = jest.fn(async () => {})
+
+      // Stub the batch-translate-log service
+      ;(strapi as any).plugins.translate.services['batch-translate-log'] = {
+        createFailure,
+      }
+      // Stub the translate service translateEntity
+      ;(strapi as any).plugins.translate.services.translate = {
+        ...(strapi as any).plugins.translate.services.translate,
+        translateEntity,
+      }
+
+      // Stub documents().findOne to return an entity for each id
+      const originalDocuments = strapi.documents
+      ;(strapi as any).documents = ((uid: string) => {
+        if (uid === translatedContentType) {
+          return {
+            findOne: async ({ documentId }: any) => ({
+              documentId,
+              locale: 'sourceLocale',
+              localizations: [],
+              title: `Entity ${documentId}`,
+            }),
+            count: async () => 0,
+            update: async () => ({}),
+          } as any
+        }
+        return (originalDocuments as any)(uid)
+      }) as any
+
+      const job = new BatchTranslateJobExecutor({
+        id: 'job1',
+        documentId: 'job1',
+        progress: 0,
+        contentType: translatedContentType,
+        sourceLocale: 'sourceLocale',
+        targetLocale: 'targetLocale',
+        entityIds: [...ids],
+        status: 'created',
+        autoPublish: 'draft',
+      })
+
+      // No-op status updates (keep status transitions in-memory)
+      BatchTranslateJobExecutor.prototype.updateStatus = jest.fn(
+        async function (this: BatchTranslateJobExecutor, status: any) {
+          this.status = status
+        }
+      ) as any
+      BatchTranslateJobExecutor.prototype.updateProgress = jest.fn(async () => {}) as any
+
+      await job.start()
+
+      expect(job.status).toBe('finished')
+      expect(translateEntity).toHaveBeenCalledTimes(3)
+      expect(job.translatedEntities).toBe(2)
+      expect(job.failedEntities).toBe(1)
+      expect(createFailure).toHaveBeenCalledTimes(1)
+      expect(createFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          batchJobId: 'job1',
+          entryDocumentId: 'b',
+          contentType: translatedContentType,
+          sourceLocale: 'sourceLocale',
+          targetLocale: 'targetLocale',
+          error: 'simulated provider failure on b',
+        })
+      )
+
+      ;(strapi as any).documents = originalDocuments
+    })
+  })
 })

@@ -14,6 +14,7 @@ import {
 export class BatchTranslateJobExecutor {
   totalEntities: number
   translatedEntities: number
+  failedEntities: number
   intervalId: null
   id: string
   autoPublish: 'draft' | 'publish' | 'mirror'
@@ -43,6 +44,7 @@ export class BatchTranslateJobExecutor {
   }: BatchTranslateJob) {
     this.totalEntities = 0
     this.translatedEntities = 0
+    this.failedEntities = 0
     this.intervalId = null
     this.id = documentId
     this.autoPublish = autoPublish
@@ -112,7 +114,8 @@ export class BatchTranslateJobExecutor {
 
   async updateProgress() {
     const data: Partial<Omit<BatchTranslateJob, 'documentId'>> = {
-      progress: this.translatedEntities / this.totalEntities,
+      progress:
+        (this.translatedEntities + this.failedEntities) / this.totalEntities,
     }
     await strapi.documents(batchContentTypeUid).update({
       documentId: this.id,
@@ -230,7 +233,10 @@ export class BatchTranslateJobExecutor {
       }
 
       // Cancel if there is no matching entity or we have reached our initial limit
-      if (!entity || this.totalEntities == this.translatedEntities) {
+      if (
+        !entity ||
+        this.totalEntities == this.translatedEntities + this.failedEntities
+      ) {
         strapi.log.debug('No more entities to translate, finishing job')
         await this.updateStatus('finished')
         return
@@ -282,17 +288,45 @@ export class BatchTranslateJobExecutor {
             label: 'BatchTranslateJobExecutor',
           })
         }
-        await this.updateStatus('failed', {
-          failureReason: {
-            message: error.message,
-            stack: error.stack,
-            name: error.name,
-          },
-        })
-        clearInterval(this.intervalId)
-        throw new Error(
-          `Translation of entity ${entity.documentId} from ${this.sourceLocale} to ${this.targetLocale} failed`
-        )
+
+        // Best-effort displayName lookup for the log entry
+        let displayName: string | undefined
+        try {
+          const mainField =
+            (this.contentTypeSchema as any)?.pluginOptions?.[
+              'content-manager'
+            ]?.mainField || 'title'
+          displayName =
+            (entity as any)[mainField] ||
+            (entity as any).title ||
+            (entity as any).name ||
+            (entity as any).slug ||
+            undefined
+        } catch {
+          // ignore — fall back to documentId in the UI
+        }
+
+        try {
+          await getService('batch-translate-log').createFailure({
+            batchJobId: this.id,
+            contentType: this.contentType,
+            entryDocumentId: entity.documentId as string,
+            displayName,
+            sourceLocale: this.sourceLocale,
+            targetLocale: this.targetLocale,
+            error: error?.message ? String(error.message) : String(error),
+          })
+        } catch (logErr) {
+          strapi.log.warn(
+            `[batch-translate] Failed to write batch-translate-log entry: ${
+              logErr instanceof Error ? logErr.message : String(logErr)
+            }`,
+            { label: 'BatchTranslateJobExecutor' }
+          )
+        }
+
+        this.failedEntities++
+        entity = null
       }
       await this.updateProgress()
     }

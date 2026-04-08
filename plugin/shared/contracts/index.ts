@@ -1,4 +1,5 @@
 export * from './auto-translate'
+export * from './batch-translate-log'
 export * from './locales'
 export * from './provider'
 export * from './settings'

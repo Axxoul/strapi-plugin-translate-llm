@@ -66,6 +66,7 @@ module.exports = ({ env }) => ({
 | **Auto-translate on save/publish** | Not available | Automatic background translation when master locale is saved |
 | **Custom translation instructions** | Not available | `customPrompt` option |
 | **Tiered batch translation** | Flat list | Grouped by dependency tier |
+| **Continue-on-error batch jobs** | One failure aborts the whole job | Failing entities are skipped and logged; the job runs to completion |
 | **HTTP timeout protection** | None | Keep-alive heartbeat for slow providers |
 | **Field maxLength enforcement** | Not available | Auto-truncates translations exceeding field character limits |
 | **Retry logic** | Provider-specific | Built-in exponential backoff |
@@ -85,6 +86,16 @@ Automatically translate content when saving or publishing in the master locale �
 3. Select your **master locale** (e.g. English)
 
 When you save or publish content in the master locale, all other locales are translated in the background. A real-time status panel in the Settings page shows translation progress and any errors.
+
+## Resilient Batch Translation
+
+When you run a batch translation job from **Plugins → Translate**, a single failing entity no longer aborts the whole job. Each failure is:
+
+- skipped so the job continues with the remaining entities
+- recorded in a dedicated log with the content type, entry, source/target locales, and error message
+- surfaced in a **RECENT BATCH-TRANSLATIONS** panel on the **Settings → Translate** page (next to the auto-translate log), with a direct link to the failing entry
+
+The batch job ends as `finished` with an accurate progress count, and old log entries are pruned automatically after 7 days.
 
 ## Credits
 

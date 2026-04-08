@@ -8,6 +8,7 @@ import { useGetAutoTranslateSettingsQuery, useUpdateAutoTranslateSettingsMutatio
 import { useGetI18NLocalesQuery } from '../services/locales'
 import { getTranslation } from '../utils/getTranslation'
 import { StatusPanel } from '../components/AutoTranslate/StatusPanel'
+import { BatchTranslateStatusPanel } from '../components/BatchTranslate/StatusPanel'
 
 const SettingsPage = () => {
   const { formatMessage } = useIntl()
@@ -300,8 +301,12 @@ const SettingsPage = () => {
               </Box>
             </Grid.Item>
 
-            <Grid.Item col={6} s={12}>
+            <Grid.Item col={3} s={12}>
               <StatusPanel />
+            </Grid.Item>
+
+            <Grid.Item col={3} s={12}>
+              <BatchTranslateStatusPanel />
             </Grid.Item>
           </Grid.Root>
 

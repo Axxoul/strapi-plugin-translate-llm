@@ -9,6 +9,7 @@ import { registerAutoTranslateMiddleware } from './middlewares/auto-translate'
 const IGNORED_UIDS = [
   'plugin::translate.auto-translate-log',
   'plugin::translate.batch-translate-job',
+  'plugin::translate.batch-translate-log',
   'plugin::translate.updated-entry',
 ]
 
@@ -31,6 +32,13 @@ const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
     .cleanupOldLogs()
     .catch((err: Error) =>
       strapi.log.warn('[auto-translate] Log cleanup failed:', err)
+    )
+
+  // Clean up old batch-translate logs (older than 7 days)
+  getService('batch-translate-log')
+    .cleanupOld()
+    .catch((err: Error) =>
+      strapi.log.warn('[batch-translate-log] Log cleanup failed:', err)
     )
 
   // Listen for updates to entries, mark them as updated

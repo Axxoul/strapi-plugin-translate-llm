@@ -10,6 +10,7 @@ const translateApi = adminApi.enhanceEndpoints({
     'TranslateSettings',
     'AutoTranslateSettings',
     'AutoTranslateLogs',
+    'BatchTranslateLogs',
     'Locale',
   ],
 })

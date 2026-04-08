@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "translate_batch_translate_logs",
+  "info": {
+    "singularName": "batch-translate-log",
+    "pluralName": "batch-translate-logs",
+    "displayName": "Batch Translate Log"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "batchJobId": {
+      "type": "string",
+      "required": true
+    },
+    "contentType": {
+      "type": "string",
+      "required": true
+    },
+    "entryDocumentId": {
+      "type": "string",
+      "required": true
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "sourceLocale": {
+      "type": "string",
+      "required": true
+    },
+    "targetLocale": {
+      "type": "string",
+      "required": true
+    },
+    "error": {
+      "type": "text",
+      "required": true
+    }
+  }
+}
