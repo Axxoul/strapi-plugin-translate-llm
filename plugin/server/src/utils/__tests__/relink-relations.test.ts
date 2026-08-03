@@ -179,6 +179,25 @@ describe('buildIncomingRelationIndex', () => {
     expect(index.get('api::prodtype.prodtype')).toBeUndefined()
   })
 
+  it("skips i18n's virtual localizations back-reference", () => {
+    const strapi = makeStrapiMock({
+      'api::product.product': localizedType({
+        title: { type: 'string' },
+        localizations: {
+          type: 'relation',
+          relation: 'oneToMany',
+          target: 'api::product.product',
+          writable: false,
+          unstable_virtual: true,
+        },
+      }),
+    })
+
+    const index = buildIncomingRelationIndex(strapi as any)
+
+    expect(index.get('api::product.product')).toBeUndefined()
+  })
+
   it("skips relations configured with translate: 'delete'", () => {
     const strapi = makeStrapiMock({
       'api::a.a': localizedType({

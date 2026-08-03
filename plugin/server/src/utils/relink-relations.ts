@@ -62,6 +62,12 @@ export function buildIncomingRelationIndex(
 
       if (attribute.type !== 'relation') continue
 
+      // i18n's own `localizations` back-reference and other virtual relations are
+      // maintained by Strapi and cannot be written to
+      if (attribute.writable === false || attribute.unstable_virtual === true) {
+        continue
+      }
+
       const onTranslate =
         attribute.pluginOptions?.translate?.translate ?? 'translate'
       if (onTranslate === 'delete') continue
