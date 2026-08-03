@@ -9,7 +9,9 @@ import { ActionType } from './actions'
 interface TierTableProps {
   contentTypes: ContentTypeTranslationReport[]
   locales: Array<Pick<Locale, 'code' | 'name'>>
-  updates: Array<{ contentType?: string; documentId: string }>
+  // Only `contentType` is read below; demanding more (e.g. documentId) rejects
+  // the UpdatedEntry[] that callers actually pass.
+  updates: Array<{ contentType?: string }>
   onAction: (params: {
     action: ActionType
     targetLocale?: string

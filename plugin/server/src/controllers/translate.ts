@@ -69,8 +69,11 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
       ctx.request.body
     )
 
+    // These helpers return the Koa context; returning it would widen the
+    // handler's return type beyond ControllerHandler's void | Response.
     if (!success) {
-      return ctx.badRequest({ message: 'request data invalid', error })
+      ctx.badRequest({ message: 'request data invalid', error })
+      return
     }
 
     const { documentId, sourceLocale, targetLocale, contentType } = data
@@ -78,13 +81,15 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
     const isCollection = isCollectionType(contentType)
 
     if (!documentId && isCollection) {
-      return ctx.badRequest({
+      ctx.badRequest({
         message: 'documentId is missing, but required for collection types',
       })
+      return
     }
 
     if (!isContentTypeUID(contentType)) {
-      return ctx.notFound('corresponding content type not found')
+      ctx.notFound('corresponding content type not found')
+      return
     }
 
     await withKeepAlive(ctx, async () => {

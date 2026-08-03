@@ -60,7 +60,8 @@ export function useCollection() {
 
   // Start refreshing the collections when a collection is being indexed
   useEffect(() => {
-    let interval: NodeJS.Timer | undefined
+    // NodeJS.Timer does not satisfy the DOM clearInterval overloads
+    let interval: ReturnType<typeof setInterval> | undefined
 
     if (realTimeReports) {
       interval = setInterval(() => {

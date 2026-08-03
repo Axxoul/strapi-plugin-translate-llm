@@ -17,6 +17,8 @@ export interface AutoTranslateService {
     limit?: number
   }): Promise<AutoTranslateLogEntry[]>
   clearLogs(): Promise<number>
+  /** Removes log entries older than the retention window (called on bootstrap) */
+  cleanupOldLogs(): Promise<void>
   getSettings(): Promise<AutoTranslateSettings>
   updateSettings(input: AutoTranslateSettings): Promise<AutoTranslateSettings>
 }

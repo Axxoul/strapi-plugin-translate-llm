@@ -117,7 +117,9 @@ export class BatchTranslateManagerImpl implements BatchTranslateManager {
       ) {
         await strapi
           .documents(batchContentTypeUid)
-          .update({ documentId, data: { status: 'cancelled' } })
+          // `status` is a field of the job content type, but it is not part of
+          // the generated Input type for this UID
+          .update({ documentId, data: { status: 'cancelled' } as any })
         return {
           ...entity,
           status: 'cancelled' as const,
