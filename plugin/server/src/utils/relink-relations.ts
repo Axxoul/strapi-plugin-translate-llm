@@ -24,7 +24,16 @@ const TO_MANY_RELATIONS = ['oneToMany', 'manyToMany', 'morphToMany']
  */
 export const MAX_REFERRERS_PER_ATTRIBUTE = 500
 
+/**
+ * How long the index memo is trusted. The index only changes when the schemas
+ * do, but the plugin has no reload event to hook, so a permanent memo went stale
+ * after a content-type-builder change until the next restart. A TTL bounds that
+ * to a minute; {@link clearIncomingRelationIndexCache} still forces a rebuild.
+ */
+const INDEX_TTL_MS = 60_000
+
 let cachedIndex: Map<string, IncomingRelation[]> | null = null
+let cachedIndexBuiltAt = 0
 
 /**
  * Build (and memoize) an index of incoming relations:
@@ -43,7 +52,7 @@ let cachedIndex: Map<string, IncomingRelation[]> | null = null
 export function buildIncomingRelationIndex(
   strapiInstance: Core.Strapi = strapi
 ): Map<string, IncomingRelation[]> {
-  if (cachedIndex) {
+  if (cachedIndex && Date.now() - cachedIndexBuiltAt < INDEX_TTL_MS) {
     return cachedIndex
   }
 
@@ -96,12 +105,14 @@ export function buildIncomingRelationIndex(
   }
 
   cachedIndex = index
+  cachedIndexBuiltAt = Date.now()
   return index
 }
 
 /** Reset the memoized index — used by tests and on schema reload. */
 export function clearIncomingRelationIndexCache() {
   cachedIndex = null
+  cachedIndexBuiltAt = 0
 }
 
 function isToMany(attribute: Record<string, any>) {

@@ -38,6 +38,8 @@ const batchTranslateBodySchema = z.object({
   contentType: z.string(),
   sourceLocale: z.string(),
   targetLocale: z.string(),
+  // `trigger` is intentionally absent: a batch job has no triggering action, so
+  // the mode has no meaning here. `BatchTranslateJobExecutor` rejects it too.
   autoPublish: z.enum(['draft', 'publish', 'mirror']),
   entityIds: z.array(z.string()).optional(),
 })

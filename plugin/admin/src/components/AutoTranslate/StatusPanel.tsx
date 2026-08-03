@@ -13,9 +13,14 @@ import { useIntl } from 'react-intl'
 import {
   useGetAutoTranslateLogsQuery,
   useClearAutoTranslateLogsMutation,
+  useGetAutoTranslateQueueStatusQuery,
+  useCancelAutoTranslateQueueMutation,
 } from '../../services/auto-translate'
 import { getTranslation } from '../../utils/getTranslation'
-import { AutoTranslateLogEntry } from '@shared/contracts/auto-translate'
+import {
+  AutoTranslateLogEntry,
+  AutoTranslateQueueStatus,
+} from '@shared/contracts/auto-translate'
 
 function StatusIcon({ status }: { status: AutoTranslateLogEntry['status'] }) {
   switch (status) {
@@ -26,6 +31,8 @@ function StatusIcon({ status }: { status: AutoTranslateLogEntry['status'] }) {
       return <Check fill="success600" />
     case 'failed':
       return <WarningCircle fill="danger600" />
+    case 'cancelled':
+      return <Cross fill="neutral600" />
     default:
       return null
   }
@@ -42,6 +49,73 @@ function statusColor(
     default:
       return 'neutral100'
   }
+}
+
+/**
+ * Queued-work summary.
+ *
+ * The queue is persisted, so work can be outstanding with nothing happening —
+ * after a restart, or when a row is stuck. Showing the counts (and a stale
+ * warning) is what keeps a parked translation visibly stuck rather than quietly
+ * gone, now that age-based cleanup no longer deletes live rows.
+ */
+function QueueSummary() {
+  const { formatMessage } = useIntl()
+  const { data: response } = useGetAutoTranslateQueueStatusQuery(undefined, {
+    pollingInterval: 5000,
+  })
+  const [cancelQueue, { isLoading: isCancelling }] =
+    useCancelAutoTranslateQueueMutation()
+
+  const status: AutoTranslateQueueStatus | undefined = (response as any)?.data
+  if (!status) return null
+
+  const outstanding = status.pending + status.translating
+  if (outstanding === 0 && status.stale === 0) return null
+
+  return (
+    <Box background="neutral100" padding={2} hasRadius marginBottom={2}>
+      <Flex justifyContent="space-between" alignItems="center" gap={2}>
+        <Flex direction="column" alignItems="flex-start">
+          <Typography variant="pi" textColor="neutral700">
+            {formatMessage(
+              {
+                id: getTranslation('auto-translate.queue.outstanding'),
+                defaultMessage:
+                  '{count} queued · {running, select, true {running} other {idle}}',
+              },
+              { count: outstanding, running: String(status.running) }
+            )}
+          </Typography>
+          {status.stale > 0 && (
+            <Typography variant="pi" textColor="danger600">
+              {formatMessage(
+                {
+                  id: getTranslation('auto-translate.queue.stale'),
+                  defaultMessage:
+                    '{count} stuck for over 15 minutes — check the server log',
+                },
+                { count: status.stale }
+              )}
+            </Typography>
+          )}
+        </Flex>
+        {outstanding > 0 && (
+          <Button
+            variant="danger-light"
+            size="S"
+            loading={isCancelling}
+            onClick={() => cancelQueue()}
+          >
+            {formatMessage({
+              id: getTranslation('auto-translate.queue.cancel'),
+              defaultMessage: 'Stop queue',
+            })}
+          </Button>
+        )}
+      </Flex>
+    </Box>
+  )
 }
 
 /**
@@ -100,6 +174,7 @@ const StatusPanel = () => {
               defaultMessage: 'RECENT AUTO-TRANSLATIONS',
             })}
           </Typography>
+          <QueueSummary />
           <Flex flex="1" alignItems="center" justifyContent="center" paddingTop={4}>
             <Typography variant="omega" textColor="neutral600">
               {formatMessage({
@@ -153,6 +228,7 @@ const StatusPanel = () => {
           })}
         </Button>
       </Flex>
+      <QueueSummary />
       <Flex direction="column" gap={2}>
         {logs.map((log) => (
           <Box

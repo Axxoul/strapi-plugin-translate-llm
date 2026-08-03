@@ -10,6 +10,13 @@ import {
   isContentTypeUID,
   isLocalizedContentType,
 } from '../../utils/content-type'
+import { resolvePublish } from '../../utils/resolve-publish'
+// Relative, not `@shared/…`: the alias is only resolved by tsc, so it works for
+// type-only imports (which SWC elides) but not for the runtime value below.
+import {
+  BATCH_AUTO_PUBLISH_MODES,
+  BatchAutoPublishMode,
+} from '../../../../shared/types/auto-translate-options'
 
 export class BatchTranslateJobExecutor {
   totalEntities: number
@@ -17,7 +24,7 @@ export class BatchTranslateJobExecutor {
   failedEntities: number
   intervalId: null
   id: string
-  autoPublish: 'draft' | 'publish' | 'mirror'
+  autoPublish: BatchAutoPublishMode
   contentType: UID.ContentType
   contentTypeSchema: Struct.ContentTypeSchema
   sourceLocale: string
@@ -47,7 +54,6 @@ export class BatchTranslateJobExecutor {
     this.failedEntities = 0
     this.intervalId = null
     this.id = documentId
-    this.autoPublish = autoPublish
     this.contentType = contentType
     if (!isContentTypeUID(contentType)) {
       throw new Error('translate.batch-translate.content-type-not-exist')
@@ -56,6 +62,16 @@ export class BatchTranslateJobExecutor {
     if (!isLocalizedContentType(contentType)) {
       throw new Error('translate.batch-translate.content-type-not-localized')
     }
+    // `trigger` means "publish iff the triggering action published"; a batch job
+    // has no triggering action, so the mode is meaningless here and accepting it
+    // would silently resolve to `draft`. Checked after the content-type checks so
+    // their more specific errors keep precedence.
+    if (
+      !BATCH_AUTO_PUBLISH_MODES.includes(autoPublish as BatchAutoPublishMode)
+    ) {
+      throw new Error('translate.batch-translate.invalid-auto-publish')
+    }
+    this.autoPublish = autoPublish as BatchAutoPublishMode
     this.sourceLocale = sourceLocale
     this.targetLocale = targetLocale
     if (Array.isArray(entityIds) && entityIds.length > 0) {
@@ -249,17 +265,12 @@ export class BatchTranslateJobExecutor {
       // Translate the entity
       try {
         // Resolve publish status based on autoPublish mode
-        let shouldPublish = this.autoPublish === 'publish'
-        if (this.autoPublish === 'mirror') {
-          const publishedDoc = await strapi
-            .documents(this.contentType)
-            .findOne({
-              documentId: entity.documentId,
-              locale: this.sourceLocale,
-              status: 'published',
-            })
-          shouldPublish = !!publishedDoc
-        }
+        const shouldPublish = await resolvePublish({
+          mode: this.autoPublish,
+          uid: this.contentType,
+          documentId: entity.documentId as string,
+          sourceLocale: this.sourceLocale,
+        })
 
         await getService('translate').translateEntity({
           documentId: entity.documentId,

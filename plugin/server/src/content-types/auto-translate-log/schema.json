@@ -39,12 +39,36 @@
     },
     "status": {
       "type": "enumeration",
-      "enum": ["pending", "translating", "success", "failed"],
+      "enum": ["pending", "translating", "success", "failed", "cancelled"],
       "default": "pending",
       "required": true
     },
     "error": {
       "type": "text"
+    },
+    "planId": {
+      "type": "string"
+    },
+    "tier": {
+      "type": "integer",
+      "default": 0
+    },
+    "attempts": {
+      "type": "integer",
+      "default": 0
+    },
+    "publishMode": {
+      "type": "enumeration",
+      "enum": ["draft", "publish", "mirror", "trigger"],
+      "default": "trigger"
+    },
+    "triggerPublished": {
+      "type": "boolean",
+      "default": false
+    },
+    "isTrigger": {
+      "type": "boolean",
+      "default": true
     }
   }
 }

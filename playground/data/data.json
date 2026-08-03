@@ -182,5 +182,34 @@
       "shareImage": null
     },
     "favicon": null
-  }
+  },
+  "topics": [
+    {
+      "id": 1,
+      "name": "climate",
+      "slug": "climate"
+    },
+    {
+      "id": 2,
+      "name": "robotics",
+      "slug": "robotics"
+    },
+    {
+      "id": 3,
+      "name": "urbanism",
+      "slug": "urbanism"
+    }
+  ],
+  "dossiers": [
+    {
+      "id": 1,
+      "title": "The warming decade",
+      "summary": "A running dossier on climate reporting."
+    },
+    {
+      "id": 2,
+      "title": "Machines at work",
+      "summary": "A running dossier on robotics reporting."
+    }
+  ]
 }

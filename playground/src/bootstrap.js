@@ -11,6 +11,8 @@ const {
   articles,
   'categories-page': categoriesPage,
   global,
+  topics,
+  dossiers,
 } = require('../data/data.json')
 const { initAdminData, getSuperAdminRole } = require('./helpers/init-admin')
 
@@ -166,6 +168,23 @@ async function importArticles() {
   )
 }
 
+// Topics and dossiers exist for the publish-cascade E2E: Topic is localized
+// *and* draft & publish (which Category is not), Article.topics is a to-many
+// relation, and Topic.featuredDossier / Dossier.topics form a genuine
+// dependency cycle. They are seeded unpublished and unrelated on purpose — each
+// test wires up exactly the shape it needs.
+async function importTopics() {
+  return Promise.all(
+    topics.map((topic) => createEntry({ model: 'topic', entry: topic }))
+  )
+}
+
+async function importDossiers() {
+  return Promise.all(
+    dossiers.map((dossier) => createEntry({ model: 'dossier', entry: dossier }))
+  )
+}
+
 async function importGlobal() {
   const files = {
     favicon: getFileData('favicon.png'),
@@ -198,6 +217,8 @@ async function importSeedData() {
     article: ['find', 'findOne'],
     category: ['find', 'findOne'],
     writer: ['find', 'findOne'],
+    topic: ['find', 'findOne'],
+    dossier: ['find', 'findOne'],
   })
 
   // Create all entries
@@ -206,6 +227,8 @@ async function importSeedData() {
   await importCategoriesPage()
   await importWriters()
   await importArticles()
+  await importTopics()
+  await importDossiers()
   await importGlobal()
   await addLocales([{ name: 'German (de)', code: 'de' }])
 }
@@ -221,7 +244,10 @@ async function cleanData() {
   await cleanCollectionType('api::homepage.homepage')
   await cleanCollectionType('api::categories-page.categories-page')
   await cleanCollectionType('api::writer.writer')
+  await cleanCollectionType('api::topic.topic')
+  await cleanCollectionType('api::dossier.dossier')
   await cleanCollectionType('plugin::translate.updated-entry')
+  await cleanCollectionType('plugin::translate.auto-translate-log')
 }
 
 async function initAdmin() {

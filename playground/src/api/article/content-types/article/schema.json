@@ -94,6 +94,17 @@
         }
       }
     },
+    "topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
+      "inversedBy": "articles",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        }
+      }
+    },
     "json_props": {
       "pluginOptions": {
         "i18n": {

@@ -9,6 +9,24 @@ import { useGetI18NLocalesQuery } from '../services/locales'
 import { getTranslation } from '../utils/getTranslation'
 import { StatusPanel } from '../components/AutoTranslate/StatusPanel'
 import { BatchTranslateStatusPanel } from '../components/BatchTranslate/StatusPanel'
+import {
+  AutoPublishMode,
+  CascadeMode,
+  OnSourceUnpublish,
+  TranslateOn,
+} from '@shared/types/auto-translate-options'
+
+/** Comma-separated UI field ↔ string[]. An empty field means "not set". */
+function parseList(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function formatList(value: string[] | null | undefined): string {
+  return Array.isArray(value) ? value.join(', ') : ''
+}
 
 const SettingsPage = () => {
   const { formatMessage } = useIntl()
@@ -27,6 +45,8 @@ const SettingsPage = () => {
     : []
 
   const autoTranslateSettings = (autoTranslateResponse as any)?.data ?? null
+  /** File-config values, so a field can show what it falls back to. */
+  const defaultsAuto = autoTranslateSettings?.defaults
 
   const settings = (response as any)?.data ?? null
   const defaults = settings?.defaults
@@ -41,6 +61,15 @@ const SettingsPage = () => {
   // Auto-translate local state
   const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(false)
   const [masterLocale, setMasterLocale] = useState('')
+  const [translateOn, setTranslateOn] = useState<TranslateOn>('save')
+  const [cascade, setCascade] = useState<CascadeMode>('off')
+  const [autoPublish, setAutoPublish] = useState<AutoPublishMode>('trigger')
+  const [onSourceUnpublish, setOnSourceUnpublish] =
+    useState<OnSourceUnpublish>('ignore')
+  const [cascadeMaxEntries, setCascadeMaxEntries] = useState('50')
+  const [cascadeMaxDepth, setCascadeMaxDepth] = useState('5')
+  const [cascadeLocales, setCascadeLocales] = useState('')
+  const [cascadeIgnoreContentTypes, setCascadeIgnoreContentTypes] = useState('')
 
   useEffect(() => {
     if (settings) {
@@ -65,6 +94,16 @@ const SettingsPage = () => {
     if (autoTranslateSettings) {
       setAutoTranslateEnabled(autoTranslateSettings.enabled ?? false)
       setMasterLocale(autoTranslateSettings.masterLocale ?? '')
+      setTranslateOn(autoTranslateSettings.translateOn ?? 'save')
+      setCascade(autoTranslateSettings.cascade ?? 'off')
+      setAutoPublish(autoTranslateSettings.autoPublish ?? 'trigger')
+      setOnSourceUnpublish(autoTranslateSettings.onSourceUnpublish ?? 'ignore')
+      setCascadeMaxEntries(String(autoTranslateSettings.cascadeMaxEntries ?? 50))
+      setCascadeMaxDepth(String(autoTranslateSettings.cascadeMaxDepth ?? 5))
+      setCascadeLocales(formatList(autoTranslateSettings.cascadeLocales))
+      setCascadeIgnoreContentTypes(
+        formatList(autoTranslateSettings.cascadeIgnoreContentTypes)
+      )
     }
   }, [autoTranslateSettings])
 
@@ -137,10 +176,39 @@ const SettingsPage = () => {
       return
     }
 
+    const maxEntries = parseInt(cascadeMaxEntries, 10)
+    const maxDepth = parseInt(cascadeMaxDepth, 10)
+    if (
+      !Number.isInteger(maxEntries) ||
+      maxEntries < 1 ||
+      !Number.isInteger(maxDepth) ||
+      maxDepth < 1
+    ) {
+      handleNotification({
+        type: 'danger',
+        id: getTranslation('auto-translate.settings.bounds.invalid'),
+        defaultMessage:
+          'Max entries and max depth must both be whole numbers of at least 1',
+      })
+      return
+    }
+
     try {
       await updateAutoTranslateSettings({
         enabled: autoTranslateEnabled,
         masterLocale,
+        translateOn,
+        cascade,
+        autoPublish,
+        onSourceUnpublish,
+        cascadeMaxEntries: maxEntries,
+        cascadeMaxDepth: maxDepth,
+        // An empty allowlist field means "every locale", which the server stores
+        // as null — an empty array would mean "no locales at all".
+        cascadeLocales: cascadeLocales.trim()
+          ? parseList(cascadeLocales)
+          : null,
+        cascadeIgnoreContentTypes: parseList(cascadeIgnoreContentTypes),
       }).unwrap()
       handleNotification({
         type: 'success',
@@ -282,6 +350,256 @@ const SettingsPage = () => {
                         </SingleSelectOption>
                       ))}
                     </SingleSelect>
+                    <Field.Hint />
+                  </Field.Root>
+
+                  <Field.Root
+                    hint={formatMessage({
+                      id: getTranslation('auto-translate.settings.translateOn.hint'),
+                      defaultMessage:
+                        'Content types without draft & publish have no publish event, so they always translate on save.',
+                    })}
+                  >
+                    <Field.Label>
+                      {formatMessage({
+                        id: getTranslation('auto-translate.settings.translateOn.label'),
+                        defaultMessage: 'Trigger',
+                      })}
+                    </Field.Label>
+                    <SingleSelect
+                      value={translateOn}
+                      onChange={(value: string | number) =>
+                        setTranslateOn(String(value) as TranslateOn)
+                      }
+                    >
+                      <SingleSelectOption value="save">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.translateOn.save'),
+                          defaultMessage: 'On save',
+                        })}
+                      </SingleSelectOption>
+                      <SingleSelectOption value="publish">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.translateOn.publish'),
+                          defaultMessage: 'On publish',
+                        })}
+                      </SingleSelectOption>
+                    </SingleSelect>
+                    <Field.Hint />
+                  </Field.Root>
+
+                  <Field.Root
+                    hint={formatMessage({
+                      id: getTranslation('auto-translate.settings.autoPublish.hint'),
+                      defaultMessage:
+                        'Publish policy for the entry that was saved. Cascaded dependencies always mirror their own source.',
+                    })}
+                  >
+                    <Field.Label>
+                      {formatMessage({
+                        id: getTranslation('auto-translate.settings.autoPublish.label'),
+                        defaultMessage: 'Publish Mode',
+                      })}
+                    </Field.Label>
+                    <SingleSelect
+                      value={autoPublish}
+                      onChange={(value: string | number) =>
+                        setAutoPublish(String(value) as AutoPublishMode)
+                      }
+                    >
+                      <SingleSelectOption value="trigger">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.autoPublish.trigger'),
+                          defaultMessage: 'Match the triggering action',
+                        })}
+                      </SingleSelectOption>
+                      <SingleSelectOption value="mirror">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.autoPublish.mirror'),
+                          defaultMessage: 'Mirror source status',
+                        })}
+                      </SingleSelectOption>
+                      <SingleSelectOption value="draft">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.autoPublish.draft'),
+                          defaultMessage: 'Always save as draft',
+                        })}
+                      </SingleSelectOption>
+                      <SingleSelectOption value="publish">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.autoPublish.publish'),
+                          defaultMessage: 'Always publish',
+                        })}
+                      </SingleSelectOption>
+                    </SingleSelect>
+                    <Field.Hint />
+                  </Field.Root>
+
+                  <Field.Root
+                    hint={formatMessage({
+                      id: getTranslation('auto-translate.settings.cascade.hint'),
+                      defaultMessage:
+                        'Translate related entries that have no version in the target locale yet, before the entry that references them. Existing translations are never overwritten.',
+                    })}
+                  >
+                    <Field.Label>
+                      {formatMessage({
+                        id: getTranslation('auto-translate.settings.cascade.label'),
+                        defaultMessage: 'Dependency Cascade',
+                      })}
+                    </Field.Label>
+                    <SingleSelect
+                      value={cascade}
+                      onChange={(value: string | number) =>
+                        setCascade(String(value) as CascadeMode)
+                      }
+                    >
+                      <SingleSelectOption value="off">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.cascade.off'),
+                          defaultMessage: 'Off',
+                        })}
+                      </SingleSelectOption>
+                      <SingleSelectOption value="missing-only">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.cascade.missing-only'),
+                          defaultMessage: 'Missing translations only',
+                        })}
+                      </SingleSelectOption>
+                    </SingleSelect>
+                    <Field.Hint />
+                  </Field.Root>
+
+                  <Field.Root
+                    hint={formatMessage({
+                      id: getTranslation('auto-translate.settings.onSourceUnpublish.hint'),
+                      defaultMessage:
+                        'Applies to the unpublished entry only — it is never cascaded to related content.',
+                    })}
+                  >
+                    <Field.Label>
+                      {formatMessage({
+                        id: getTranslation('auto-translate.settings.onSourceUnpublish.label'),
+                        defaultMessage: 'When the source is unpublished',
+                      })}
+                    </Field.Label>
+                    <SingleSelect
+                      value={onSourceUnpublish}
+                      onChange={(value: string | number) =>
+                        setOnSourceUnpublish(String(value) as OnSourceUnpublish)
+                      }
+                    >
+                      <SingleSelectOption value="ignore">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.onSourceUnpublish.ignore'),
+                          defaultMessage: 'Leave translations published',
+                        })}
+                      </SingleSelectOption>
+                      <SingleSelectOption value="unpublish">
+                        {formatMessage({
+                          id: getTranslation('auto-translate.settings.onSourceUnpublish.unpublish'),
+                          defaultMessage: 'Unpublish translations too',
+                        })}
+                      </SingleSelectOption>
+                    </SingleSelect>
+                    <Field.Hint />
+                  </Field.Root>
+
+                  <Grid.Root gap={4}>
+                    <Grid.Item col={6} s={12}>
+                      <Field.Root
+                        width="100%"
+                        hint={formatMessage({
+                          id: getTranslation('auto-translate.settings.cascadeMaxEntries.hint'),
+                          defaultMessage:
+                            'Total entries one save may queue, across all target locales.',
+                        })}
+                      >
+                        <Field.Label>
+                          {formatMessage({
+                            id: getTranslation('auto-translate.settings.cascadeMaxEntries.label'),
+                            defaultMessage: 'Max entries per trigger',
+                          })}
+                        </Field.Label>
+                        <TextInput
+                          value={cascadeMaxEntries}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setCascadeMaxEntries(e.target.value)
+                          }
+                          placeholder={String(defaultsAuto?.cascadeMaxEntries ?? 50)}
+                        />
+                        <Field.Hint />
+                      </Field.Root>
+                    </Grid.Item>
+                    <Grid.Item col={6} s={12}>
+                      <Field.Root
+                        width="100%"
+                        hint={formatMessage({
+                          id: getTranslation('auto-translate.settings.cascadeMaxDepth.hint'),
+                          defaultMessage: 'Relation hops the cascade may follow.',
+                        })}
+                      >
+                        <Field.Label>
+                          {formatMessage({
+                            id: getTranslation('auto-translate.settings.cascadeMaxDepth.label'),
+                            defaultMessage: 'Max cascade depth',
+                          })}
+                        </Field.Label>
+                        <TextInput
+                          value={cascadeMaxDepth}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setCascadeMaxDepth(e.target.value)
+                          }
+                          placeholder={String(defaultsAuto?.cascadeMaxDepth ?? 5)}
+                        />
+                        <Field.Hint />
+                      </Field.Root>
+                    </Grid.Item>
+                  </Grid.Root>
+
+                  <Field.Root
+                    hint={formatMessage({
+                      id: getTranslation('auto-translate.settings.cascadeLocales.hint'),
+                      defaultMessage:
+                        'Comma-separated locale codes to translate into. Leave empty for every locale.',
+                    })}
+                  >
+                    <Field.Label>
+                      {formatMessage({
+                        id: getTranslation('auto-translate.settings.cascadeLocales.label'),
+                        defaultMessage: 'Target locales',
+                      })}
+                    </Field.Label>
+                    <TextInput
+                      value={cascadeLocales}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setCascadeLocales(e.target.value)
+                      }
+                      placeholder="en, de, fr"
+                    />
+                    <Field.Hint />
+                  </Field.Root>
+
+                  <Field.Root
+                    hint={formatMessage({
+                      id: getTranslation('auto-translate.settings.cascadeIgnoreContentTypes.hint'),
+                      defaultMessage:
+                        'Comma-separated content type UIDs the cascade never walks into.',
+                    })}
+                  >
+                    <Field.Label>
+                      {formatMessage({
+                        id: getTranslation('auto-translate.settings.cascadeIgnoreContentTypes.label'),
+                        defaultMessage: 'Ignore content types',
+                      })}
+                    </Field.Label>
+                    <TextInput
+                      value={cascadeIgnoreContentTypes}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setCascadeIgnoreContentTypes(e.target.value)
+                      }
+                      placeholder="api::tag.tag, api::author.author"
+                    />
                     <Field.Hint />
                   </Field.Root>
 

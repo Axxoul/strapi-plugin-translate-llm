@@ -1,8 +1,8 @@
 import {
   AutoTranslateSettings,
-  AutoTranslateLogEntry,
   AutoTranslateSettingsEndpoint,
   AutoTranslateLogs,
+  AutoTranslateQueue,
 } from '@shared/contracts/auto-translate'
 import { translateApi } from './api'
 
@@ -20,7 +20,7 @@ const autoTranslateApi = translateApi.injectEndpoints({
     }),
     updateAutoTranslateSettings: build.mutation<
       AutoTranslateSettingsEndpoint.Update.Response,
-      AutoTranslateSettings
+      Partial<AutoTranslateSettings>
     >({
       invalidatesTags: ['AutoTranslateSettings'],
       query: (data) => ({
@@ -44,9 +44,29 @@ const autoTranslateApi = translateApi.injectEndpoints({
       AutoTranslateLogs.Clear.Response,
       void
     >({
-      invalidatesTags: ['AutoTranslateLogs'],
+      invalidatesTags: ['AutoTranslateLogs', 'AutoTranslateQueue'],
       query: () => ({
         url: '/translate/auto-translate/logs',
+        method: 'DELETE',
+      }),
+    }),
+    getAutoTranslateQueueStatus: build.query<
+      AutoTranslateQueue.Status.Response,
+      void
+    >({
+      providesTags: ['AutoTranslateQueue'],
+      query: () => ({
+        url: '/translate/auto-translate/queue',
+        method: 'GET',
+      }),
+    }),
+    cancelAutoTranslateQueue: build.mutation<
+      AutoTranslateQueue.Cancel.Response,
+      void
+    >({
+      invalidatesTags: ['AutoTranslateQueue', 'AutoTranslateLogs'],
+      query: () => ({
+        url: '/translate/auto-translate/queue',
         method: 'DELETE',
       }),
     }),
@@ -59,4 +79,6 @@ export const {
   useUpdateAutoTranslateSettingsMutation,
   useGetAutoTranslateLogsQuery,
   useClearAutoTranslateLogsMutation,
+  useGetAutoTranslateQueueStatusQuery,
+  useCancelAutoTranslateQueueMutation,
 } = autoTranslateApi

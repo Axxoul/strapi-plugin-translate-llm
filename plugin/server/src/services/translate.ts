@@ -28,6 +28,8 @@ import {
 import { BatchTranslateJob } from '@shared/types/batch-translate-job'
 import { populateAll, translateRelations } from '../utils'
 import { relinkIncomingRelations } from '../utils/relink-relations'
+import { resolvePublish } from '../utils/resolve-publish'
+import { warnUnpublishedDependencies } from '../utils/warn-unpublished-dependencies'
 import {
   buildDependencyGraph,
   findSCCs,
@@ -187,6 +189,28 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
 
       enforceMaxLengths(cleanedData as Record<string, any>, contentSchema)
 
+      // Publishing links relations against the target's *published* row. A
+      // dependency that only exists as a draft resolves fine above and then
+      // silently loses the link inside Strapi's relation transform — check for
+      // it here, where both locales are still known, and never let the check
+      // itself break a translation.
+      if (params.publish) {
+        try {
+          await warnUnpublishedDependencies({
+            data: withFieldsDeleted as Record<string, any>,
+            schema: contentSchema,
+            parentUid: params.contentType,
+            parentDocumentId: params.documentId,
+            sourceLocale: params.sourceLocale,
+            targetLocale: params.targetLocale,
+          })
+        } catch (error) {
+          strapi.log.debug(
+            `[translate] unpublished-dependency check failed for ${params.contentType}: ${error?.message ?? error}`
+          )
+        }
+      }
+
       let writtenDocumentId = params.documentId
 
       if (collectionType) {
@@ -284,6 +308,13 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
       if (!sourceEntity)
         throw new Error('No entity found with locale ' + sourceLocale)
 
+      // Configurable since 1.1.0. The default is `draft`, which is exactly the
+      // `publish: false` this replaced — re-translating an updated entry does
+      // not publish it unless an operator asks for that.
+      const publishMode =
+        strapi.config.get<TranslateConfig>('plugin::translate')
+          .updatedEntryAutoPublish ?? 'draft'
+
       for (const targetLocale of targetLocales) {
         await getService('translate').translateEntity({
           documentId: documentId,
@@ -292,8 +323,12 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
           targetLocale,
           create: true,
           updateExisting: true,
-          // FIXME: This should be configurable
-          publish: false,
+          publish: await resolvePublish({
+            mode: publishMode,
+            uid: update.contentType,
+            documentId: documentId as string,
+            sourceLocale,
+          }),
           priority: TRANSLATE_PRIORITY_BATCH_TRANSLATION,
         })
       }

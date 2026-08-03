@@ -51,7 +51,7 @@ Strapi v5 standard: `register` → `bootstrap` → `destroy`. Bootstrap (`plugin
 Providers are npm packages named `strapi-provider-translate-{name}`. Each exports `init(providerOptions, pluginConfig)` returning `{ translate({ text, sourceLocale, targetLocale, priority, format }), usage() }`. A built-in dummy provider copies values without translating. Both real providers use Bottleneck for rate limiting.
 
 ### Key Services (`plugin/server/src/services/`)
-- **auto-translate** — Automatic translation on save/publish. Uses a document service middleware to intercept create/update/publish on localized content types. When the saved locale matches the configured master locale, fires sequential `translateEntity()` calls for all other locales in the background. Uses an in-memory guard set to prevent infinite loops and a debounce to collapse rapid saves.
+- **auto-translate** — Automatic translation on save/publish, plus the dependency cascade. A document service middleware intercepts create/update/publish/unpublish on localized content types and resolves the locales the action touched. When a resolved locale matches the master locale, the service plans the work (optionally cascading into untranslated dependencies, tier-ordered), writes `pending` rows to a **persisted queue**, and a single sequential executor drains it via `translateEntity()`. An in-memory guard set prevents infinite loops; a separate depth counter suppresses `updated-entry` tracking for plugin-originated writes.
 - **translate** — Orchestrates single-entity and batch translation; groups fields by format, calls provider, maps results back
 - **batch-translate/** — `BatchTranslateManager` + `BatchTranslateJobExecutor` handle DB-persisted, pause/resume-capable batch jobs that survive server restarts
 - **chunks** — Splits text arrays respecting provider max length/byte limits; returns a reduce function to reassemble results
@@ -63,7 +63,7 @@ Providers are npm packages named `strapi-provider-translate-{name}`. Each export
 TypeScript interfaces and contracts shared between server and admin. Contains API request/response types (`contracts/`), service interfaces (`services/`), and domain types (`types/`).
 
 ### Content Types
-Three hidden collection types: `batch-translate-job` (job state/progress/status), `updated-entry` (modification tracking for re-translation), and `auto-translate-log` (status/error tracking for automatic translations).
+Three hidden collection types: `batch-translate-job` (job state/progress/status), `updated-entry` (modification tracking for re-translation), and `auto-translate-log` (**the auto-translate queue as well as its log** — status, plan id, tier, attempts and publish mode per row).
 
 ### Admin UI (`plugin/admin/src/`)
 React frontend using `@strapi/design-system` v2 and `react-intl`. Key views: collection list with batch job status, content manager header action for direct translation (`CMHeaderActions.tsx`), usage quota display, settings page with provider config and auto-translate controls. The settings page includes a `StatusPanel` component that polls for auto-translate log entries (5s interval) and displays real-time translation progress/errors. Request validation uses Zod on the server side.
@@ -74,10 +74,12 @@ React frontend using `@strapi/design-system` v2 and `react-intl`. Key views: col
 - `POST /translate/batch/pause|resume|cancel/:id` — Job control
 - `POST /translate/estimate` — Usage estimation
 - `GET /provider/usage` — Provider API quota
-- `GET /auto-translate/settings` — Get auto-translate settings (enabled, master locale)
-- `PUT /auto-translate/settings` — Update auto-translate settings
-- `GET /auto-translate/logs` — List recent auto-translate log entries (supports `?status=` and `?limit=` query params)
-- `DELETE /auto-translate/logs` — Clear all auto-translate log entries
+- `GET /auto-translate/settings` — Effective auto-translate settings plus the file-config defaults
+- `PUT /auto-translate/settings` — Update auto-translate settings (partial; an omitted field is left alone)
+- `GET /auto-translate/logs` — List recent queue/log rows (supports `?status=` and `?limit=`)
+- `DELETE /auto-translate/logs` — Clear all rows
+- `GET /auto-translate/queue` — Queue status: pending/translating/failed counts, oldest live row, stale count, whether the executor is running
+- `DELETE /auto-translate/queue` — Kill switch: cancel pending rows without a restart
 
 ## Code Style
 
@@ -124,27 +126,43 @@ Content types are now grouped by dependency tier in the batch translation UI, so
 Automatic background translation when content is saved or published in the master locale. Comparable to Strapi AI's paid auto-translate feature but open-source and provider-agnostic.
 
 **How it works:**
-1. A document service middleware (`plugin/server/src/middlewares/auto-translate.ts`) intercepts `create`, `update`, and `publish` actions on localized content types
-2. If the saved locale matches the configured master locale and auto-translate is enabled, the `auto-translate` service fires in the background (non-blocking)
-3. Translations run sequentially for each target locale via the existing `translateEntity()` flow
-4. An in-memory `Set<string>` guard prevents infinite loops — translated writes are flagged so the middleware skips them
-5. A 300ms debounce collapses rapid saves into a single translation trigger
-6. Results (pending/translating/success/failed) are logged to the `auto-translate-log` content type
-7. The admin Settings page shows a real-time status panel that polls for log entries
+1. A document service middleware (`plugin/server/src/middlewares/auto-translate.ts`) intercepts `create`, `update`, `publish` and `unpublish` on localized content types
+2. It resolves the **source locales the action touched** — `undefined` → the i18n default, `'*'` → every locale, arrays element-wise. This is load-bearing: `@strapi/core` fills `locale` in *inside* the repository, after middlewares run, so a plain `publish({documentId})` arrives here with `locale === undefined` and reading the raw value made the feature silently do nothing on the commonest publish shape.
+3. `publishedNow = action === 'publish' || (create|update with `params.status === 'published'`)`. `update({status:'published'})` does **not** emit a separate `publish` action — `repository.js` calls the module-local `publish()`, which never re-enters the middleware chain.
+4. `translateOn: 'publish'` gates on `publishedNow` **only for draft-and-publish types**, read off `options.draftAndPublish`. A type without D&P has no publish event and one row, so for it save *is* publish.
+5. If the resolved locale matches the master locale, the `auto-translate` service plans the work and writes `pending` rows to the queue — **before** anything runs, so a restart in the window is visible rather than lost
+6. A single sequential executor drains the queue via the existing `translateEntity()` flow. Results (pending/translating/success/failed/cancelled) live on the same rows
+7. An in-memory `Set<string>` guard prevents infinite loops; a separate depth counter (`isPluginWrite()`) suppresses `updated-entry` tracking for *all* plugin-originated writes, including the relink pass writing to other documents
+8. The admin Settings page shows a real-time status panel with queue depth, stale-row warnings and a kill switch
+
+**The queue** (`auto-translate-log` doubles as it):
+- Rows are keyed `(contentType, entryDocumentId, targetLocale)` — the dedupe key. A live row (`pending`/`translating`) is the **authoritative** lock; the in-memory set is a fast path only, so a two-dyno race resolves itself (lowest row id wins, the loser cancels itself).
+- Rows are inserted in **plan order** (dependencies by ascending tier, then the trigger entry) and consumed by ascending `id`. That gives tier ordering *within* a plan without a global tier barrier — a later plan never blocks on an earlier plan's tier.
+- `SETTLE_MS` (300 ms) delays *execution*, not row creation. It still collapses a rapid create-then-update into one translation of the latest content, which is what the old debounce did, without the old debounce's window of invisible loss.
+- `resumeQueue()` runs on bootstrap: `translating` → `pending` (attempt already counted, `MAX_ATTEMPTS` 3), in-flight set rebuilt, drain kicked.
+- `cleanupOldLogs()` deletes **only** `success`/`failed`/`cancelled` rows by age. Deleting a live row would silently drop the translation it stands for; a stuck row stays and is surfaced by `getQueueStatus()`.
 
 **Key files:**
-- `plugin/server/src/middlewares/auto-translate.ts` — document service middleware registration
-- `plugin/server/src/services/auto-translate.ts` — core orchestration: guard, debounce, settings CRUD, log CRUD, `triggerAutoTranslate()`
-- `plugin/server/src/controllers/auto-translate.ts` — API handlers for settings and logs
-- `plugin/server/src/routes/auto-translate.ts` — 4 route definitions
-- `plugin/server/src/content-types/auto-translate-log/schema.json` — log entry content type
-- `plugin/shared/contracts/auto-translate.ts` — shared TypeScript types
-- `plugin/admin/src/components/AutoTranslate/StatusPanel.tsx` — real-time status UI with polling
-- `plugin/admin/src/services/auto-translate.ts` — RTK Query hooks for admin API
+- `plugin/server/src/middlewares/auto-translate.ts` — trigger detection + locale resolution
+- `plugin/server/src/services/auto-translate.ts` — settings merge/cache, planning, queue, executor, guard, unpublish handling
+- `plugin/server/src/utils/cascade-plan.ts` — **pure** planner (injected lookups), ordering + bounds
+- `plugin/server/src/utils/related-documents.ts` — deep-populated relation walk (components + dynamic zones)
+- `plugin/server/src/utils/tier-map.ts` — memoized `uid → tier`, 60 s TTL + explicit invalidator
+- `plugin/server/src/utils/resolve-publish.ts` — the one place `draft|publish|mirror|trigger` is resolved
+- `plugin/server/src/controllers/auto-translate.ts` / `routes/auto-translate.ts` — settings, logs, queue status, kill switch (6 routes)
+- `plugin/server/src/content-types/auto-translate-log/schema.json` — queue/log rows
+- `plugin/shared/contracts/auto-translate.ts`, `plugin/shared/types/auto-translate-options.ts` — shared types and the single definition of each option vocabulary
+- `plugin/admin/src/components/AutoTranslate/StatusPanel.tsx` — status UI, queue summary, Stop queue
+- `plugin/admin/src/pages/SettingsPage.tsx` — all auto-translate options
+- Tests: `services/__tests__/auto-translate.test.ts` (38), `middlewares/__tests__/auto-translate.test.ts` (21), `utils/__tests__/cascade-plan.test.ts` (16), `utils/__tests__/resolve-publish.test.ts` (13), `utils/__tests__/warn-unpublished-dependencies.test.ts` (7), plus the config validator cases. Harness: `server/src/__mocks__/auto-translate-harness.ts`
 
-**Configuration:** Enable in Strapi admin → Settings → Translate. Set "Enable auto-translate on save" toggle and select the master locale. Settings are stored in the Strapi DB store (`plugin::translate::auto_translate_settings`).
+**Configuration:** file config supplies the defaults (`plugin/server/src/config/index.ts`), the DB store overrides them (Settings → Translate), exactly like `getMergedProviderOptions()`. See the README's *Auto-translate options* table.
 
-**Error handling:** Fails loudly — errors are logged to the auto-translate-log content type and displayed in the Settings page status panel. No automatic retry. Old logs are cleaned up on bootstrap (>7 days).
+**Rule 0 — defaults are behaviour-preserving.** `translateOn: 'save'`, `cascade: 'off'`, `autoPublish: 'trigger'`, `updatedEntryAutoPublish: 'draft'`. `'trigger'` is a verbatim pass-through of the triggering action's publish flag — it deliberately does *not* branch on draft-and-publish, so an app that upgrades without touching config writes byte-identical parameters. Asserted by test, not by inspection.
+
+**Watch out:** `'@shared/…'` is a **tsc-only** alias. Type-only imports work (SWC elides them); a runtime *value* import from `@shared` resolves under `tsc` and then fails under Jest and the build. Use a relative path for values — `config/index.ts`, `services/auto-translate.ts` and `BatchTranslateJobExecutor.ts` all do.
+
+**Error handling:** Fails loudly — errors are logged to the row and displayed in the Settings page status panel. Up to 3 attempts, no backoff. Old *finished* rows are cleaned up on bootstrap (>7 days).
 
 ### 3. Reverse Relation Relink (incoming pass)
 
@@ -216,6 +234,41 @@ cd providers/openrouter && npm run build
 npm link -w providers/openrouter           # from monorepo root
 cd C:\jsapps\strapi-ucpa && npm link strapi-provider-translate-openrouter
 ```
+
+### 5. Published-row gap check (`utils/warn-unpublished-dependencies.ts`)
+
+Runs before any write with `status: 'published'`. It catches a failure that
+`logDroppedRelations` structurally **cannot** see: `getRelevantLocalization()` calls
+`findOne({documentId, locale})` with no status, which defaults to the draft, so a draft-only
+dependency *resolves successfully* and is never dropped by `translateRelation`. The loss
+happens one layer later, silently, inside Strapi's relation transform — `dp.js` resolves the
+write against the target's published row, which does not exist.
+
+Two cases, deliberately at different log levels:
+- **legacy** (source published, target-locale twin draft-only) → `warn`, naming parent and
+  dependency. Target-only gap; repair belongs to a backfill, not the cascade.
+- **mirrored** (the dependency is unpublished in the source too) → `debug`. Believed a
+  faithful mirror of the source, **conditional on the source-parity assertion** in the
+  playground spec (`9.7`). If parity does not hold, this case must be promoted to `warn` and
+  the "faithful mirror" wording in the README's *Known limits* is wrong.
+
+The check is never fatal and never blocks a translation.
+
+### 6. Playground additions for the cascade E2E
+
+`api::topic.topic` and `api::dossier.dossier` were added because the pre-existing fixtures
+could not exercise the feature: `api::category.category` is localized but **not** draft &
+publish, `api::writer.writer` is not localized, leaving exactly one localized edge to a
+non-D&P target. The additions give a localized **D&P** dependency (`topic`), a **to-many**
+relation (`article.topics`), and a genuine **SCC** (`dossier.topics` owns one edge,
+`topic.featuredDossier` the other — a single bidirectional pair is *not* a cycle in the graph,
+because `buildDependencyGraph` skips the `mappedBy` side).
+
+`playground/cypress/e2e/publish-cascade.cy.js` drives the admin API rather than the content
+manager UI: the cascade is background work behind a persisted queue, so the spec queues,
+polls `GET /translate/auto-translate/queue` via `cy.waitForQueue()`, then asserts. Published-row
+assertions read the **public REST API**, which only ever sees published rows — the exact
+surface where the relation used to vanish.
 
 ## Local Development with strapi-ucpa
 

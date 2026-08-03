@@ -27,11 +27,17 @@ const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
   // Register auto-translate document service middleware
   registerAutoTranslateMiddleware(strapi)
 
-  // Clean up old auto-translate logs (older than 7 days)
+  // Clean up finished auto-translate logs (older than 7 days), then pick up any
+  // queued translations a restart interrupted. Order matters only for tidiness:
+  // cleanup never touches pending/translating rows.
   getService('auto-translate')
     .cleanupOldLogs()
     .catch((err: Error) =>
       strapi.log.warn('[auto-translate] Log cleanup failed:', err)
+    )
+    .then(() => getService('auto-translate').resumeQueue())
+    .catch((err: Error) =>
+      strapi.log.warn('[auto-translate] Queue resume failed:', err)
     )
 
   // Clean up old batch-translate logs (older than 7 days)
@@ -44,6 +50,11 @@ const bootstrap: Core.Plugin['bootstrap'] = async ({ strapi }) => {
   // Listen for updates to entries, mark them as updated
   strapi.db.lifecycles.subscribe({
     afterUpdate(event) {
+      // A translation, a cascade write or a relink is not an editor changing
+      // content — filing it here would have the plugin fill the
+      // "needs re-translation" table with its own output.
+      if (getService('auto-translate').isPluginWrite()) return
+
       if (
         // content type must not be on ignore list
         event?.model?.uid &&

@@ -37,7 +37,7 @@ describe('BatchTranslateJob', () => {
         targetLocale: 'targetLocale',
         entityIds: ['entityIds'],
         status: 'setup',
-        autoPublish: false,
+        autoPublish: 'draft',
       })
     }).toThrow('translate.batch-translate.content-type-not-localized')
   })
@@ -53,7 +53,7 @@ describe('BatchTranslateJob', () => {
         targetLocale: 'targetLocale',
         entityIds: ['entityIds'],
         status: 'setup',
-        autoPublish: false,
+        autoPublish: 'draft',
       })
     }).not.toThrow()
   })
@@ -69,7 +69,7 @@ describe('BatchTranslateJob', () => {
         targetLocale: 'targetLocale',
         entityIds: ['entityIds'],
         status: 'setup',
-        autoPublish: false,
+        autoPublish: 'draft',
       })
 
       return expect(job.start()).rejects.toThrow()
@@ -85,7 +85,7 @@ describe('BatchTranslateJob', () => {
         targetLocale: 'targetLocale',
         entityIds: ['entityIds'],
         status: 'created',
-        autoPublish: false,
+        autoPublish: 'draft',
       })
 
       // job.start()
@@ -107,7 +107,7 @@ describe('BatchTranslateJob', () => {
         targetLocale: 'targetLocale',
         entityIds: ['entityIds'],
         status: 'created',
-        autoPublish: false,
+        autoPublish: 'draft',
       })
     })
 

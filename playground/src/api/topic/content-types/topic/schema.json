@@ -1,0 +1,70 @@
+{
+  "kind": "collectionType",
+  "collectionName": "topics",
+  "info": {
+    "singularName": "topic",
+    "pluralName": "topics",
+    "displayName": "Topic",
+    "description": "Localized, draft & publish. The dependency type the cascade has to create before an article that references it."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        },
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "articles": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::article.article",
+      "mappedBy": "topics",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        }
+      }
+    },
+    "featuredDossier": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::dossier.dossier",
+      "inversedBy": "featuredTopics",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        }
+      }
+    },
+    "dossiers": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::dossier.dossier",
+      "mappedBy": "topics",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        }
+      }
+    }
+  }
+}

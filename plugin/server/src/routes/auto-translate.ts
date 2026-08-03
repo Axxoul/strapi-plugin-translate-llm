@@ -55,4 +55,32 @@ export default [
       ],
     },
   },
+  {
+    method: 'GET',
+    path: '/auto-translate/queue',
+    handler: 'auto-translate.getQueueStatus',
+    config: {
+      policies: [
+        'admin::isAuthenticatedAdmin',
+        {
+          name: 'plugin::content-manager.hasPermissions',
+          config: { actions: ['plugin::translate.settings'] },
+        },
+      ],
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/auto-translate/queue',
+    handler: 'auto-translate.cancelQueue',
+    config: {
+      policies: [
+        'admin::isAuthenticatedAdmin',
+        {
+          name: 'plugin::content-manager.hasPermissions',
+          config: { actions: ['plugin::translate.settings'] },
+        },
+      ],
+    },
+  },
 ]

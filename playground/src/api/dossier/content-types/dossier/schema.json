@@ -1,0 +1,65 @@
+{
+  "kind": "collectionType",
+  "collectionName": "dossiers",
+  "info": {
+    "singularName": "dossier",
+    "pluralName": "dossiers",
+    "displayName": "Dossier",
+    "description": "Localized, draft & publish. Forms a genuine dependency cycle with Topic: dossier.topics owns one edge, topic.featuredDossier owns the other."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        },
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "summary": {
+      "type": "text",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        },
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
+      "inversedBy": "dossiers",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        }
+      }
+    },
+    "featuredTopics": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::topic.topic",
+      "mappedBy": "featuredDossier",
+      "pluginOptions": {
+        "translate": {
+          "translate": "translate"
+        }
+      }
+    }
+  }
+}
