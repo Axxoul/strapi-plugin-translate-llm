@@ -37,8 +37,10 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
 
+      # Full workspace install: a plugin-only install resolves different
+      # @strapi/strapi typings and the declaration build then fails.
       - name: Install dependencies
-        run: npm ci --workspace strapi-plugin-translate-llm --include-workspace-root
+        run: npm ci
 
       - name: Build plugin
         run: npm run build --workspace strapi-plugin-translate-llm
