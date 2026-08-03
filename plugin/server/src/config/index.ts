@@ -10,6 +10,12 @@ export type TranslateConfig = {
   providerOptions: TranslateProviderOptions
   translatedFieldTypes: Array<TranslatedFieldType>
   translateRelations: boolean
+  /**
+   * After writing an entry in a target locale, re-link everything that
+   * referenced it in the source locale. Repairs relations that the forward
+   * mapping had to drop because the localization did not exist yet.
+   */
+  relinkIncomingRelations: boolean
   ignoreUpdatedContentTypes: string[]
   regenerateUids: boolean
 }
@@ -28,6 +34,7 @@ export default {
         'dynamiczone',
       ],
       translateRelations: true,
+      relinkIncomingRelations: true,
       ignoreUpdatedContentTypes: [],
       regenerateUids: false,
     }
@@ -37,6 +44,7 @@ export default {
     providerOptions,
     translatedFieldTypes,
     translateRelations,
+    relinkIncomingRelations,
     ignoreUpdatedContentTypes,
   }: Partial<TranslateConfig>) {
     if (provider === 'dummy' && process.env.NODE_ENV !== 'test') {
@@ -72,6 +80,12 @@ export default {
     }
     if (typeof translateRelations !== 'boolean') {
       throw new Error('translateRelations has to be a boolean')
+    }
+    if (
+      relinkIncomingRelations !== undefined &&
+      typeof relinkIncomingRelations !== 'boolean'
+    ) {
+      throw new Error('relinkIncomingRelations has to be a boolean')
     }
     if (providerOptions && typeof providerOptions !== 'object') {
       throw new Error('providerOptions has to be an object if it is defined')

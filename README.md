@@ -125,6 +125,10 @@ module.exports = {
       ],
       // Translate relations (default: true)
       translateRelations: true,
+      // After writing an entry in a target locale, re-link everything that referenced it
+      // in the source locale. Repairs relations the forward mapping had to drop because
+      // the related localization did not exist yet. Additive only. (default: true)
+      relinkIncomingRelations: true,
       // Ignore updates for certain content types (default: [])
       ignoreUpdatedContentTypes: ['api::category.category'],
       // Regenerate UIDs when batch updating (default: false)

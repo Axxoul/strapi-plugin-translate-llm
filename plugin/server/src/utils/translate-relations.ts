@@ -57,7 +57,8 @@ export async function translateRelations<TSchemaUID extends UID.ContentType>(
                 ? await translateRelation(
                     attributeData,
                     attributeSchema,
-                    targetLocale
+                    targetLocale,
+                    String(attr)
                   )
                 : undefined
             } else {
@@ -74,7 +75,8 @@ export async function translateRelations<TSchemaUID extends UID.ContentType>(
                 ? await translateRelation(
                     attributeData,
                     attributeSchema,
-                    targetLocale
+                    targetLocale,
+                    String(attr)
                   )
                 : undefined
             } else if (attributeSchema.type === 'component') {
@@ -120,10 +122,32 @@ async function translateComponent<TSchemaUID extends UID.Component>(
   return translateRelations(data, componentSchema, targetLocale)
 }
 
+/**
+ * Log relations that could not be mapped to the target locale.
+ *
+ * A related document without a `targetLocale` localization is dropped here and
+ * nothing revisits it later, which is how links silently went missing for
+ * months. The reverse pass in `relink-relations.ts` repairs these once the
+ * missing localization appears — this log makes the gap visible in the meantime.
+ */
+function logDroppedRelations(
+  dropped: number,
+  attr: string,
+  target: string,
+  targetLocale: string
+) {
+  if (dropped > 0) {
+    strapi.log.debug(
+      `[translate] dropped ${dropped} unresolved ${attr} relation(s) to ${target} for locale ${targetLocale} (no localization yet)`
+    )
+  }
+}
+
 async function translateRelation(
   attributeData: any,
   attributeSchema: Schema.Attribute.Relation,
-  targetLocale: string
+  targetLocale: string,
+  attr = 'relation'
 ) {
   const relationSchema = strapi.contentTypes[attributeSchema['target']]
 
@@ -164,26 +188,39 @@ async function translateRelation(
       Array.isArray(attributeData) &&
       attributeData.length > 0
     ) {
-      return compact(
-        await Promise.all(
-          attributeData.map(async (prevRelation) =>
-            getRelevantLocalization(
-              attributeSchema['target'],
-              prevRelation['documentId'],
-              targetLocale
-            )
+      const localizations = await Promise.all(
+        attributeData.map(async (prevRelation) =>
+          getRelevantLocalization(
+            attributeSchema['target'],
+            prevRelation['documentId'],
+            targetLocale
           )
         )
       )
+      const resolved = compact(localizations)
+      logDroppedRelations(
+        localizations.length - resolved.length,
+        attr,
+        attributeSchema['target'],
+        targetLocale
+      )
+      return resolved
     } else if (
       ['oneToOne', 'manyToOne'].includes(attributeSchema.relation) &&
       attributeData
     ) {
-      return getRelevantLocalization(
+      const localization = await getRelevantLocalization(
         attributeSchema['target'],
         attributeData['documentId'],
         targetLocale
       )
+      logDroppedRelations(
+        localization ? 0 : 1,
+        attr,
+        attributeSchema['target'],
+        targetLocale
+      )
+      return localization
     }
   } else if (
     relationIsBothWays &&

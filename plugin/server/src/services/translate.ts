@@ -27,6 +27,7 @@ import {
 } from '../utils/content-type'
 import { BatchTranslateJob } from '@shared/types/batch-translate-job'
 import { populateAll, translateRelations } from '../utils'
+import { relinkIncomingRelations } from '../utils/relink-relations'
 import {
   buildDependencyGraph,
   findSCCs,
@@ -186,6 +187,8 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
 
       enforceMaxLengths(cleanedData as Record<string, any>, contentSchema)
 
+      let writtenDocumentId = params.documentId
+
       if (collectionType) {
         await strapi.documents(params.contentType).update({
           documentId: params.documentId,
@@ -194,11 +197,35 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
           status: params.publish ? 'published' : 'draft',
         })
       } else if (singleType) {
-        await strapi.documents(params.contentType).create({
+        const created = await strapi.documents(params.contentType).create({
           data: cleanedData,
           locale: params.targetLocale,
           status: params.publish ? 'published' : 'draft',
         })
+        writtenDocumentId = created?.documentId
+      }
+
+      // Reverse pass: re-link everything that referenced this document in the
+      // source locale. The forward mapping above can only resolve localizations
+      // that already existed, so links are otherwise lost for good.
+      const config = strapi.config.get<TranslateConfig>('plugin::translate')
+      if (
+        config?.translateRelations &&
+        config?.relinkIncomingRelations !== false &&
+        writtenDocumentId
+      ) {
+        try {
+          await relinkIncomingRelations({
+            uid: params.contentType,
+            documentId: writtenDocumentId,
+            sourceLocale: params.sourceLocale,
+            targetLocale: params.targetLocale,
+          })
+        } catch (error) {
+          strapi.log.warn(
+            `[translate] relink pass failed for ${params.contentType}:${writtenDocumentId} (${params.targetLocale}): ${error?.message ?? error}`
+          )
+        }
       }
     }
 

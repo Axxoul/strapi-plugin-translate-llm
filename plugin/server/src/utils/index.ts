@@ -3,6 +3,11 @@ export { getConfig } from './get-config'
 export { getService } from './get-service'
 export * as lodashHelpers from './lodash-helpers'
 export { populateAll } from './populate-all'
+export {
+  buildIncomingRelationIndex,
+  clearIncomingRelationIndexCache,
+  relinkIncomingRelations,
+} from './relink-relations'
 export * as translatableFields from './translatable-fields'
 export { translateRelations } from './translate-relations'
 export { updateUids } from './update-uids'
