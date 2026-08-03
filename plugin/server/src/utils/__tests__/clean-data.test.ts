@@ -56,6 +56,8 @@ describe('clean data', () => {
             'simple',
             { repeatable: true }
           ),
+          'api::complex.component-with-relation':
+            createContentTypeWithComponent('with-relation', {}),
           'api::complex.dynamiczone': createContentTypeWithDynamicZone(
             ['simple', 'two-field'],
             {}
@@ -83,12 +85,12 @@ describe('clean data', () => {
     })
   })
 
-  it('content type relation transformed to id', () => {
+  it('content type relation transformed to documentId', () => {
     // given
     const data = {
       documentId: 'a',
       id: 1,
-      related: { id: 1, title: 'some text' },
+      related: { documentId: 'rel1', id: 1, title: 'some text' },
     }
     const schema = strapi.contentTypes['api::complex.relation']
 
@@ -98,7 +100,26 @@ describe('clean data', () => {
     // then
     expect(cleanedData).toEqual({
       documentId: 'a',
-      related: 1,
+      related: 'rel1',
+    })
+  })
+
+  it('content type relation without documentId falls back to id', () => {
+    // given — targets that are not documents (e.g. admin::user) have no documentId
+    const data = {
+      documentId: 'a',
+      id: 1,
+      related: { id: 7, title: 'some text' },
+    }
+    const schema = strapi.contentTypes['api::complex.relation']
+
+    // when
+    const cleanedData = cleanData(data, schema, false)
+
+    // then
+    expect(cleanedData).toEqual({
+      documentId: 'a',
+      related: 7,
     })
   })
 
@@ -121,14 +142,14 @@ describe('clean data', () => {
     })
   })
 
-  it('content type multiple relation transformed to id', () => {
+  it('content type multiple relation transformed to documentIds', () => {
     // given
     const data = {
       documentId: 'a',
       id: 1,
       related: [
-        { id: 1, title: 'some text' },
-        { id: 2, title: 'some text' },
+        { documentId: 'rel1', id: 1, title: 'some text' },
+        { documentId: 'rel2', id: 2, title: 'some text' },
       ],
     }
     const schema = strapi.contentTypes['api::complex.relation-multiple']
@@ -139,7 +160,31 @@ describe('clean data', () => {
     // then
     expect(cleanedData).toEqual({
       documentId: 'a',
-      related: [1, 2],
+      related: ['rel1', 'rel2'],
+    })
+  })
+
+  it('relation inside a component transformed to documentId', () => {
+    // given
+    const data = {
+      documentId: 'a',
+      id: 1,
+      component: {
+        id: 1,
+        related: { documentId: 'rel1', id: 1, title: 'some text' },
+      },
+    }
+    const schema = strapi.contentTypes['api::complex.component-with-relation']
+
+    // when
+    const cleanedData = cleanData(data, schema, false)
+
+    // then
+    expect(cleanedData).toEqual({
+      documentId: 'a',
+      component: {
+        related: 'rel1',
+      },
     })
   })
 

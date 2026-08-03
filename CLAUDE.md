@@ -169,7 +169,20 @@ the reverse pass runs when the missing side finally appears.
 - Referrers per (contentType, attribute) are capped at `MAX_REFERRERS_PER_ATTRIBUTE` (500) with a
   warning when the cap is hit.
 
+**The forward pass writes documentIds too (1.0.14).** `cleanData()` used to flatten every resolved
+relation to its numeric `id` before the target-locale write. A numeric id addresses exactly one row
+and, per `@strapi/core/.../transform/relations/transform/data-ids.js`, short-circuits Strapi's
+relation transform entirely — no locale resolution, no draft/published resolution, just "link this
+row". Since `getRelevantLocalization()` returns the target's *draft*, an already-published target
+locale never received the link on its published row, which is the "published-row gap" the backfill
+script kept sweeping. The branch now emits `e.documentId ?? e.id`, so the write goes through the
+transform and Strapi resolves the right locale and status itself. The `id` fallback keeps relations
+to non-document targets (e.g. `admin::user`) working; the **media** branch stays on numeric ids
+because files are not documents. A bare array still means `set` (replace), so the to-many shape is
+unchanged.
+
 **Key files:**
+- `plugin/server/src/utils/clean-data.ts` — relation branch emits `documentId ?? id`
 - `plugin/server/src/utils/relink-relations.ts` — memoized incoming-relation index
   (`targetUid → [{ uid, attr, attribute }]`, both sides of bidirectional relations, localized types
   only, `translate: 'delete'` excluded) + `relinkIncomingRelations()`

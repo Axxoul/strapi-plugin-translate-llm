@@ -86,13 +86,20 @@ export function cleanData<
           cleanComponent(object, attributeSchema, forFrontend)
       )
     } else if (attributeSchema.type === 'relation' && !forFrontend) {
+      // Emit documentIds, not numeric ids. A numeric id addresses exactly one
+      // row, so writing it links whichever row happened to be resolved — the
+      // draft — and bypasses Strapi's relation transform entirely. A documentId
+      // goes through that transform, which resolves the target's localization
+      // and draft/published counterpart for the write being made.
+      // Fall back to `id` for targets that are not documents (e.g. admin::user).
       const relatedEntity = get(resultData, attr, [])
       if (Array.isArray(relatedEntity)) {
-        resultData[attr] = relatedEntity.map((e) => e.id)
+        resultData[attr] = relatedEntity.map((e) => e.documentId ?? e.id)
       } else if (relatedEntity) {
-        resultData[attr] = relatedEntity.id
+        resultData[attr] = relatedEntity.documentId ?? relatedEntity.id
       }
     } else if (attributeSchema.type === 'media' && !forFrontend) {
+      // Media stays on numeric ids — files are not documents.
       const mediaFiles = get(resultData, attr, [])
       if (Array.isArray(mediaFiles)) {
         resultData[attr] = mediaFiles.map((e) => e.id)
