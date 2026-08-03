@@ -24,7 +24,6 @@
     "@commitlint/config-conventional": "^19.5.0",
     "@qiwi/multi-semantic-release": "^7.1.2",
     "@semantic-release/git": "^10.0.1",
-    "@swc/core-win32-x64-msvc": "^1.15.18",
     "@swc/jest": "^0.2.36",
     "conventional-changelog-conventionalcommits": "^6.0.0",
     "cz-conventional-changelog": "3.3.0",
@@ -51,7 +50,8 @@
     "*.(js|jsx|ts|tsx|json|yml|yaml|md|css|html)": "prettier -w"
   },
   "packageManager": "npm@10.8.2",
-  "dependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.59.0"
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
+    "@swc/core-win32-x64-msvc": "^1.15.18"
   }
 }
