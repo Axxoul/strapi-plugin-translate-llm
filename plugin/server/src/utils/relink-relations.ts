@@ -60,7 +60,8 @@ export function buildIncomingRelationIndex(
 
   const localizedTypes = keys(strapiInstance.contentTypes).filter(
     (ct) =>
-      strapiInstance.contentTypes[ct].pluginOptions?.i18n?.['localized'] === true
+      strapiInstance.contentTypes[ct].pluginOptions?.i18n?.['localized'] ===
+      true
   )
 
   for (const uid of localizedTypes) {
@@ -239,7 +240,11 @@ export async function relinkIncomingRelations({
             documentId: referrer.documentId,
             locale: targetLocale,
             data: {
-              [attr]: toMany ? { connect: [documentId] } : documentId,
+              // Longhand `{ documentId }`, never a bare string. Strapi's relation
+              // shorthand parser misparses a documentId that starts with a digit
+              // as a numeric id (parseInt), so bare strings link the wrong row or
+              // fail; the object form always resolves correctly.
+              [attr]: toMany ? { connect: [{ documentId }] } : { documentId },
             } as any,
           })
 

@@ -85,7 +85,7 @@ describe('clean data', () => {
     })
   })
 
-  it('content type relation transformed to documentId', () => {
+  it('content type relation transformed to longhand documentId object', () => {
     // given
     const data = {
       documentId: 'a',
@@ -100,11 +100,39 @@ describe('clean data', () => {
     // then
     expect(cleanedData).toEqual({
       documentId: 'a',
-      related: 'rel1',
+      related: { documentId: 'rel1' },
     })
   })
 
-  it('content type relation without documentId falls back to id', () => {
+  it('content type relation whose documentId starts with a digit stays a longhand object', () => {
+    // Regression guard for the upstream Strapi shorthand parser bug: a bare
+    // documentId string starting with a digit ('8z2qq…' → parseInt → 8) is
+    // classified as a numeric id by map-relation.js `isNumeric`, so it must be
+    // emitted as a longhand `{ documentId }` object, never a bare string.
+    const data = {
+      documentId: 'a',
+      id: 1,
+      related: {
+        documentId: '8z2qqvzuebn9h4tg8p036v03',
+        id: 1,
+        title: 'some text',
+      },
+    }
+    const schema = strapi.contentTypes['api::complex.relation']
+
+    // when
+    const cleanedData = cleanData(data, schema, false)
+
+    // then
+    expect(cleanedData).toEqual({
+      documentId: 'a',
+      related: { documentId: '8z2qqvzuebn9h4tg8p036v03' },
+    })
+    // and never a bare string
+    expect(typeof (cleanedData as any).related).toBe('object')
+  })
+
+  it('content type relation without documentId falls back to longhand id', () => {
     // given — targets that are not documents (e.g. admin::user) have no documentId
     const data = {
       documentId: 'a',
@@ -119,7 +147,7 @@ describe('clean data', () => {
     // then
     expect(cleanedData).toEqual({
       documentId: 'a',
-      related: 7,
+      related: { id: 7 },
     })
   })
 
@@ -142,14 +170,14 @@ describe('clean data', () => {
     })
   })
 
-  it('content type multiple relation transformed to documentIds', () => {
+  it('content type multiple relation transformed to longhand documentId objects', () => {
     // given
     const data = {
       documentId: 'a',
       id: 1,
       related: [
         { documentId: 'rel1', id: 1, title: 'some text' },
-        { documentId: 'rel2', id: 2, title: 'some text' },
+        { documentId: '8z2qqvzuebn9h4tg8p036v03', id: 2, title: 'some text' },
       ],
     }
     const schema = strapi.contentTypes['api::complex.relation-multiple']
@@ -157,10 +185,14 @@ describe('clean data', () => {
     // when
     const cleanedData = cleanData(data, schema, false)
 
-    // then
+    // then — a bare array still means `set`; each element is a longhand object so
+    // a digit-leading documentId is not misparsed as a numeric id
     expect(cleanedData).toEqual({
       documentId: 'a',
-      related: ['rel1', 'rel2'],
+      related: [
+        { documentId: 'rel1' },
+        { documentId: '8z2qqvzuebn9h4tg8p036v03' },
+      ],
     })
   })
 
@@ -183,7 +215,7 @@ describe('clean data', () => {
     expect(cleanedData).toEqual({
       documentId: 'a',
       component: {
-        related: 'rel1',
+        related: { documentId: 'rel1' },
       },
     })
   })

@@ -91,12 +91,24 @@ export function cleanData<
       // draft — and bypasses Strapi's relation transform entirely. A documentId
       // goes through that transform, which resolves the target's localization
       // and draft/published counterpart for the write being made.
-      // Fall back to `id` for targets that are not documents (e.g. admin::user).
+      //
+      // Emit the documentId as a LONGHAND object `{ documentId }`, never a bare
+      // string. Strapi's relation shorthand parser (map-relation.js) classifies
+      // a bare string with `isNumeric = !Number.isNaN(parseInt(value, 10))`, so a
+      // documentId that starts with a digit (e.g. '8z2qq…' → parseInt → 8) is
+      // misparsed as a numeric id `{ id: '8z2qq…' }`, skips the documentId→id
+      // transform, and either fails ("relation does not exist") or silently links
+      // the wrong row. `{ documentId }` always goes through map-relation's object
+      // branch and resolves correctly regardless of first character.
+      // Fall back to `{ id }` for targets that are not documents (e.g.
+      // admin::user).
       const relatedEntity = get(resultData, attr, [])
+      const toLonghand = (e: any) =>
+        e.documentId ? { documentId: e.documentId } : { id: e.id }
       if (Array.isArray(relatedEntity)) {
-        resultData[attr] = relatedEntity.map((e) => e.documentId ?? e.id)
+        resultData[attr] = relatedEntity.map(toLonghand)
       } else if (relatedEntity) {
-        resultData[attr] = relatedEntity.documentId ?? relatedEntity.id
+        resultData[attr] = toLonghand(relatedEntity)
       }
     } else if (attributeSchema.type === 'media' && !forFrontend) {
       // Media stays on numeric ids — files are not documents.

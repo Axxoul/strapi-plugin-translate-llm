@@ -1,4 +1,11 @@
-import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals'
+import {
+  describe,
+  expect,
+  it,
+  beforeEach,
+  afterEach,
+  jest,
+} from '@jest/globals'
 import {
   buildIncomingRelationIndex,
   clearIncomingRelationIndexCache,
@@ -47,13 +54,21 @@ function makeStrapiMock(
       if (!doc) throw new Error('not found')
       updates.push({ uid, documentId, locale, data })
       for (const [attr, value] of Object.entries<any>(data)) {
-        if (value && typeof value === 'object' && Array.isArray(value.connect)) {
+        if (
+          value &&
+          typeof value === 'object' &&
+          Array.isArray(value.connect)
+        ) {
+          // connect entries are longhand `{ documentId }` objects
           doc[attr] = [
             ...(doc[attr] ?? []),
-            ...value.connect.map((id: string) => ({ documentId: id })),
+            ...value.connect.map((rel: any) => ({
+              documentId: rel.documentId,
+            })),
           ]
-        } else if (typeof value === 'string') {
-          doc[attr] = { documentId: value }
+        } else if (value && typeof value === 'object' && value.documentId) {
+          // to-one assignment is a longhand `{ documentId }` object
+          doc[attr] = { documentId: value.documentId }
         }
       }
       return doc
@@ -238,7 +253,11 @@ describe('relinkIncomingRelations', () => {
         { documentId: 'prod-1', locale: 'en', product_options: [] },
       ],
       'api::product-option.product-option': [
-        { documentId: 'opt-1', locale: 'sv', product: { documentId: 'prod-1' } },
+        {
+          documentId: 'opt-1',
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
         { documentId: 'opt-1', locale: 'en', product: null },
       ],
     })
@@ -257,7 +276,7 @@ describe('relinkIncomingRelations', () => {
         uid: 'api::product.product',
         documentId: 'prod-1',
         locale: 'en',
-        data: { product_options: { connect: ['opt-1'] } },
+        data: { product_options: { connect: [{ documentId: 'opt-1' }] } },
       },
     ])
   })
@@ -273,7 +292,11 @@ describe('relinkIncomingRelations', () => {
         { documentId: 'prod-1', locale: 'en', product_options: [] },
       ],
       'api::product-option.product-option': [
-        { documentId: 'opt-1', locale: 'sv', product: { documentId: 'prod-1' } },
+        {
+          documentId: 'opt-1',
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
         { documentId: 'opt-1', locale: 'en', product: null },
       ],
     })
@@ -292,7 +315,50 @@ describe('relinkIncomingRelations', () => {
         uid: 'api::product-option.product-option',
         documentId: 'opt-1',
         locale: 'en',
-        data: { product: 'prod-1' },
+        data: { product: { documentId: 'prod-1' } },
+      },
+    ])
+  })
+
+  it('connects with a longhand object when the documentId starts with a digit', async () => {
+    // Regression guard for the upstream Strapi shorthand parser bug: a bare
+    // documentId string starting with a digit is misparsed as a numeric id
+    // (parseInt) by map-relation.js, so the relink write must use a longhand
+    // `{ documentId }` object, never a bare string.
+    const digitId = '8z2qqvzuebn9h4tg8p036v03'
+    const strapi = makeStrapiMock(PRODUCT_TYPES, {
+      'api::product.product': [
+        {
+          documentId: 'prod-1',
+          locale: 'sv',
+          product_options: [{ documentId: digitId }],
+        },
+        { documentId: 'prod-1', locale: 'en', product_options: [] },
+      ],
+      'api::product-option.product-option': [
+        {
+          documentId: digitId,
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
+        { documentId: digitId, locale: 'en', product: null },
+      ],
+    })
+
+    const result = await relinkIncomingRelations({
+      uid: 'api::product-option.product-option' as any,
+      documentId: digitId,
+      sourceLocale: 'sv',
+      targetLocale: 'en',
+    })
+
+    expect(result).toEqual({ linked: 1, skipped: 0, errors: 0 })
+    expect(strapi.__updates).toEqual([
+      {
+        uid: 'api::product.product',
+        documentId: 'prod-1',
+        locale: 'en',
+        data: { product_options: { connect: [{ documentId: digitId }] } },
       },
     ])
   })
@@ -308,7 +374,11 @@ describe('relinkIncomingRelations', () => {
         { documentId: 'prod-1', locale: 'en', product_options: [] },
       ],
       'api::product-option.product-option': [
-        { documentId: 'opt-1', locale: 'sv', product: { documentId: 'prod-1' } },
+        {
+          documentId: 'opt-1',
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
         { documentId: 'opt-1', locale: 'en', product: null },
       ],
     })
@@ -337,7 +407,11 @@ describe('relinkIncomingRelations', () => {
         },
       ],
       'api::product-option.product-option': [
-        { documentId: 'opt-1', locale: 'sv', product: { documentId: 'prod-1' } },
+        {
+          documentId: 'opt-1',
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
         {
           documentId: 'opt-1',
           locale: 'en',
@@ -371,7 +445,11 @@ describe('relinkIncomingRelations', () => {
         // no EN product
       ],
       'api::product-option.product-option': [
-        { documentId: 'opt-1', locale: 'sv', product: { documentId: 'prod-1' } },
+        {
+          documentId: 'opt-1',
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
         { documentId: 'opt-1', locale: 'en', product: null },
       ],
     })
@@ -412,7 +490,11 @@ describe('relinkIncomingRelations', () => {
         { documentId: 'prod-1', locale: 'en', product_options: [] },
       ],
       'api::product-option.product-option': [
-        { documentId: 'opt-1', locale: 'sv', product: { documentId: 'prod-1' } },
+        {
+          documentId: 'opt-1',
+          locale: 'sv',
+          product: { documentId: 'prod-1' },
+        },
       ],
     })
 
