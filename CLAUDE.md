@@ -199,6 +199,16 @@ to non-document targets (e.g. `admin::user`) working; the **media** branch stays
 because files are not documents. A bare array still means `set` (replace), so the to-many shape is
 unchanged.
 
+**…but as longhand objects, never bare strings (1.1.1).** Strapi's relation shorthand parser
+(`map-relation.js`) classifies a bare string with `parseInt`, so a documentId that *starts with a
+digit* (`'8z2qq…'` → `8`) is misparsed as a numeric-id shorthand, skips the documentId→id
+transform, and either throws `N relation(s) of type … do not exist` in the entity validator or
+silently links whatever row the digit prefix coerces to. Real production hit: 3 of 9 theme
+documentIds on one product were digit-leading. Both write paths — `cleanData()` forward and
+`relinkIncomingRelations()` reverse — therefore emit `{ documentId }` (or `{ id }` fallback)
+objects, which always take `mapRelation`'s object branch. Regression tests use a digit-leading
+documentId. Upstream bug drafted in `tasks/upstream-issues.md`.
+
 **Key files:**
 - `plugin/server/src/utils/clean-data.ts` — relation branch emits `documentId ?? id`
 - `plugin/server/src/utils/relink-relations.ts` — memoized incoming-relation index
