@@ -137,3 +137,6 @@ reports/
 
 **/cypress/videos
 **/cypress/screenshots
+
+# Claude Code
+.claude/
