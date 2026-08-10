@@ -231,7 +231,10 @@ Automatically translate content to all locales when you save or publish in the m
 - A real-time status panel on the settings page shows queue depth, progress and errors,
   and offers a **Stop queue** button that drops pending work without a restart
 - Errors are shown immediately (no silent failures, no automatic retry beyond 3 attempts)
-- Rapid saves collapse into a single translation of the latest content
+- Rapid saves collapse into a single translation of the latest content — and the collapse
+  keeps the strongest publish signal: the admin panel's publish button issues a draft save
+  followed by a publish, and the merged queue row publishes, never quietly downgrades to a
+  draft
 - Finished log entries are cleaned up after 7 days. Queued and in-progress rows are
   **never** removed by age — a stuck translation stays visible instead of disappearing
 

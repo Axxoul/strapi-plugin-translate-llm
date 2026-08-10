@@ -84,11 +84,76 @@ const autoTranslateGuard = new Set<string>()
 let pluginWriteDepth = 0
 
 /**
+ * The signals a queued row carries that a later duplicate is allowed to add.
+ *
+ * Both are monotonic upgrades, never downgrades. The admin panel's publish flow
+ * is always update-then-publish through the document service, so the publish
+ * trigger routinely arrives while the update's row is still live — dropping it
+ * outright (which the dedupe used to do) starved `autoPublish: 'trigger'` of
+ * its publish flag on every admin-panel publish.
+ */
+type LiveFlags = {
+  triggerPublished: boolean
+  isTrigger: boolean
+}
+
+function liveFlags(row: {
+  triggerPublished?: boolean
+  isTrigger?: boolean
+}): LiveFlags {
+  return {
+    triggerPublished: !!row.triggerPublished,
+    isTrigger: row.isTrigger !== false,
+  }
+}
+
+/**
+ * The fields `incoming` would add to the live row `existing` — or null when
+ * `existing` already covers every signal `incoming` carries, i.e. dropping the
+ * duplicate loses nothing.
+ *
+ * A direct trigger upgrading a cascade `'mirror'` row also brings its own
+ * `publishMode` and display name: the editor acted on this document, so the
+ * configured trigger behaviour (and `updateExisting`) must win over the
+ * create-if-missing dependency semantics.
+ */
+function upgradeData(
+  existing: { triggerPublished?: boolean; isTrigger?: boolean },
+  incoming: PendingRowInput
+): Record<string, any> | null {
+  const data: Record<string, any> = {}
+  if (incoming.triggerPublished && !existing.triggerPublished) {
+    data.triggerPublished = true
+  }
+  if (incoming.isTrigger && existing.isTrigger === false) {
+    data.isTrigger = true
+    data.publishMode = incoming.publishMode
+    if (incoming.displayName) data.displayName = incoming.displayName
+  }
+  return Object.keys(data).length > 0 ? data : null
+}
+
+/**
  * Fast-path dedupe. Authoritative dedupe is the `pending` row in the database;
  * this only saves the round trip on the hot path and is rebuilt from the DB on
- * restart, so a second process never depends on it being right.
+ * restart, so a second process never depends on it being right. The value is
+ * the strongest flags known to be live for the key: a duplicate is only skipped
+ * here when it adds no signal, so the fast path can never swallow a publish.
  */
-const inFlight = new Set<string>()
+const inFlight = new Map<string, LiveFlags>()
+
+function rememberLive(key: string, flags: LiveFlags): void {
+  const current = inFlight.get(key)
+  inFlight.set(
+    key,
+    current
+      ? {
+          triggerPublished: current.triggerPublished || flags.triggerPublished,
+          isTrigger: current.isTrigger || flags.isTrigger,
+        }
+      : flags
+  )
+}
 
 /**
  * The in-flight drain, or null when idle. Held as a promise rather than a
@@ -580,13 +645,24 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
     for (const row of rows) {
       const key = guardKey(row.contentType, row.entryDocumentId, row.targetLocale)
 
-      // Fast path — never authoritative.
-      if (inFlight.has(key)) continue
+      // Fast path — never authoritative, and only allowed to drop a duplicate
+      // that adds no signal over what is already known to be live.
+      const seen = inFlight.get(key)
+      if (seen && !upgradeData(seen, row)) continue
 
       try {
-        if (await this._hasLiveRow(row)) {
-          inFlight.add(key)
-          continue
+        const live = await this._liveRows(row)
+        if (live.length > 0) {
+          const outcome = await this._mergeIntoLiveRows(live, row)
+          if (outcome !== 'insert') {
+            rememberLive(key, liveFlags(row))
+            if (outcome === 'upgraded') queued++
+            continue
+          }
+          // 'insert': every live row is already translating with weaker flags,
+          // so its executor can no longer pick the signal up. A follow-up row
+          // re-runs the translation with the publish flag once the in-flight
+          // one finishes — one redundant provider call, never a lost publish.
         }
 
         const created = await logDocuments().create({
@@ -594,8 +670,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
         })
 
         // Cross-process arbitration: two dynos can both pass the check above.
-        // Whichever row got the lower id wins; the loser cancels itself, so the
-        // work happens exactly once without a new locking mechanism.
+        // Whichever row got the lower id wins; the loser pushes its signal onto
+        // the winner and cancels itself, so the work happens exactly once — with
+        // the merged flags — without a new locking mechanism.
         if (await this._losesRace(row, created.id)) {
           await this._setStatus(created.documentId, 'cancelled', {
             error: 'Superseded by an identical queued translation',
@@ -603,7 +680,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
           continue
         }
 
-        inFlight.add(key)
+        rememberLive(key, liveFlags(row))
         queued++
       } catch (error) {
         strapi.log.error(
@@ -618,32 +695,60 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
     return queued
   },
 
-  async _hasLiveRow(row: {
+  async _liveRows(row: {
     contentType: string
     entryDocumentId: string
     targetLocale: string
-  }): Promise<boolean> {
-    const count = await logQuery().count({
+  }): Promise<QueueRow[]> {
+    return (await logQuery().findMany({
       where: {
         contentType: row.contentType,
         entryDocumentId: row.entryDocumentId,
         targetLocale: row.targetLocale,
         status: { $in: ['pending', 'translating'] },
       },
-    })
-    return count > 0
+      orderBy: { id: 'asc' },
+    })) as QueueRow[]
   },
 
-  async _losesRace(
-    row: { contentType: string; entryDocumentId: string; targetLocale: string },
-    ownId: number
-  ): Promise<boolean> {
+  /**
+   * Fold a duplicate's signal into the live rows for its dedupe key.
+   *
+   * - `'covered'` — a live row already carries everything the duplicate does;
+   *   dropping it loses nothing.
+   * - `'upgraded'` — a still-`pending` row absorbed the duplicate's flags. The
+   *   update is a single conditional UPDATE (`updateMany` on id + status), so it
+   *   can only land while the row really is pending — if the executor flipped it
+   *   to `translating` in between, zero rows match and we fall through.
+   * - `'insert'` — every live row is `translating` and the duplicate adds
+   *   signal; the caller must insert a follow-up row.
+   */
+  async _mergeIntoLiveRows(
+    live: QueueRow[],
+    row: PendingRowInput
+  ): Promise<'covered' | 'upgraded' | 'insert'> {
+    for (const target of live) {
+      if (target.status !== 'pending') continue
+      const data = upgradeData(target, row)
+      if (!data) return 'covered'
+      const result = await logQuery().updateMany({
+        where: { id: target.id, status: 'pending' },
+        data,
+      })
+      if ((result?.count ?? 0) > 0) return 'upgraded'
+    }
+
+    const newest = live[live.length - 1]
+    return upgradeData(newest, row) ? 'insert' : 'covered'
+  },
+
+  async _losesRace(row: PendingRowInput, ownId: number): Promise<boolean> {
     // Without our own id there is nothing to compare against; keep the row and
     // let the pre-insert check be the only defence rather than risk cancelling
     // work over a malformed query.
     if (typeof ownId !== 'number') return false
 
-    const count = await logQuery().count({
+    const others = (await logQuery().findMany({
       where: {
         contentType: row.contentType,
         entryDocumentId: row.entryDocumentId,
@@ -651,8 +756,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
         status: { $in: ['pending', 'translating'] },
         id: { $lt: ownId },
       },
-    })
-    return count > 0
+      orderBy: { id: 'asc' },
+    })) as QueueRow[]
+    if (others.length === 0) return false
+
+    // An older live row exists. Yield to it — but only after pushing our signal
+    // onto it, so losing the race never means losing the publish flag. The one
+    // case we keep our row: every older row is already mid-flight and cannot
+    // absorb the signal, which makes our row the follow-up.
+    const outcome = await this._mergeIntoLiveRows(others, row)
+    return outcome !== 'insert'
   },
 
   /** Kick the executor if it is not already draining. Fire-and-forget. */
@@ -711,30 +824,39 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
     }
 
     await this._setStatus(row.documentId, 'translating', { attempts })
-    inFlight.add(key)
+
+    // Re-read after the status flip, not before: the drain loop fetched this
+    // row *before* the settle sleep, and the settle window is exactly where an
+    // admin publish upgrades the row's flags in place (update-then-publish).
+    // Once the row is `translating`, an upgrade can no longer land (the
+    // conditional update in `_mergeIntoLiveRows` requires `pending`), so what
+    // we read here is final.
+    const fresh =
+      ((await logQuery().findOne({ where: { id: row.id } })) as QueueRow) ?? row
+    rememberLive(key, liveFlags(fresh))
 
     try {
       const publish = await resolvePublish({
-        mode: row.publishMode ?? 'trigger',
-        uid: row.contentType as UID.ContentType,
-        documentId: row.entryDocumentId,
-        sourceLocale: row.sourceLocale,
-        triggerPublished: !!row.triggerPublished,
+        mode: fresh.publishMode ?? 'trigger',
+        uid: fresh.contentType as UID.ContentType,
+        documentId: fresh.entryDocumentId,
+        sourceLocale: fresh.sourceLocale,
+        triggerPublished: !!fresh.triggerPublished,
       })
 
       autoTranslateGuard.add(key)
       pluginWriteDepth++
 
       await getService('translate').translateEntity({
-        documentId: row.entryDocumentId,
-        contentType: row.contentType as any,
-        sourceLocale: row.sourceLocale,
-        targetLocale: row.targetLocale,
+        documentId: fresh.entryDocumentId,
+        contentType: fresh.contentType as any,
+        sourceLocale: fresh.sourceLocale,
+        targetLocale: fresh.targetLocale,
         create: true,
         // The trigger entry keeps overwriting its own translation, as it always
         // has. A cascaded dependency must not: if another process won the race
         // and created it, throwing is correct — clobbering is not.
-        updateExisting: row.isTrigger !== false,
+        updateExisting: fresh.isTrigger !== false,
         publish,
         priority: 10, // lower priority than direct user translation
       })
@@ -801,8 +923,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
       })) as QueueRow[]
 
       for (const row of pending) {
-        inFlight.add(
-          guardKey(row.contentType, row.entryDocumentId, row.targetLocale)
+        rememberLive(
+          guardKey(row.contentType, row.entryDocumentId, row.targetLocale),
+          liveFlags(row)
         )
       }
 

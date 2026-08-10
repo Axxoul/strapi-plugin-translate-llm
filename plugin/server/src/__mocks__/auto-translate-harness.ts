@@ -185,6 +185,15 @@ export function createHarness(options: HarnessOptions = {}) {
             )
             return limit ? found.slice(0, limit) : found
           }),
+          findOne: jest.fn(
+            async ({ where }: any = {}) =>
+              rows.find((r) => matches(r, where)) ?? null
+          ),
+          updateMany: jest.fn(async ({ where, data }: any = {}) => {
+            const matched = rows.filter((r) => matches(r, where))
+            matched.forEach((r) => Object.assign(r, data))
+            return { count: matched.length }
+          }),
           count: jest.fn(
             async ({ where }: any = {}) =>
               rows.filter((r) => matches(r, where)).length

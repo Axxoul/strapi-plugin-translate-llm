@@ -40,9 +40,20 @@ function create(uid, data, locale = 'en') {
     })
 }
 
-function publish(uid, documentId, locale = 'en') {
+/**
+ * The content-manager publish endpoint — which is NOT a single document-service
+ * action: the controller always saves the draft first (`updateDocument`) and
+ * then publishes, so every admin-panel publish reaches the plugin middleware as
+ * an update-then-publish pair milliseconds apart. `data` mimics the admin
+ * panel, which always sends the full form values in the publish request body.
+ */
+function publish(uid, documentId, locale = 'en', data = undefined) {
   return cy
-    .api('POST', `${cm(uid, `/${documentId}/actions/publish`)}?locale=${locale}`)
+    .api(
+      'POST',
+      `${cm(uid, `/${documentId}/actions/publish`)}?locale=${locale}`,
+      data
+    )
     .then((res) => {
       expect(res.status, `publish ${uid}`).to.eq(200)
       return res.body.data
@@ -60,9 +71,15 @@ function update(uid, documentId, data, locale = 'en') {
 
 function readCm(uid, documentId, locale, status) {
   const query = status ? `?locale=${locale}&status=${status}` : `?locale=${locale}`
-  return cy
-    .api('GET', `${cm(uid, `/${documentId}`)}${query}`)
-    .then((res) => (res.status === 200 ? res.body.data : null))
+  return cy.api('GET', `${cm(uid, `/${documentId}`)}${query}`).then((res) => {
+    if (res.status !== 200) return null
+    const data = res.body.data
+    // When the document exists but the requested locale/status version does
+    // not, the CM controller answers 200 with `data: {}` — treat that as null
+    // or every "version must not exist" assertion silently inverts.
+    if (!data || Object.keys(data).length === 0) return null
+    return data
+  })
 }
 
 /** Public REST API — published rows only, which is what the frontend sees. */
@@ -85,6 +102,11 @@ describe('publish-triggered translation with dependency cascade', () => {
   beforeEach(() => {
     cy.exec('npm run reset')
     cy.api('DELETE', '/translate/auto-translate/logs')
+    // Settings live in core_store and survive the content reset — start every
+    // test disabled so fixture writes never run under the previous test's
+    // settings. Each test enables what it needs, after its fixtures if the
+    // fixtures must not trigger translations themselves.
+    setAutoTranslate({ enabled: false, masterLocale: '' })
   })
 
   after(() => {
@@ -101,16 +123,19 @@ describe('publish-triggered translation with dependency cascade', () => {
   })
 
   it('9.1 — translates the missing dependency first, and the published row carries it', () => {
-    setAutoTranslate({
-      translateOn: 'publish',
-      cascade: 'missing-only',
-      autoPublish: 'mirror',
-    })
-
     create(TOPIC, { name: 'climate policy', slug: 'climate-policy' }).then(
       (topic) => {
         // The topic is published in the source locale but has no German version.
         publish(TOPIC, topic.documentId)
+
+        // Enabled only after the fixtures exist: publishing the topic with
+        // auto-translate on would queue the topic's own trigger translation and
+        // the "missing dependency" premise would be gone before the test starts.
+        setAutoTranslate({
+          translateOn: 'publish',
+          cascade: 'missing-only',
+          autoPublish: 'mirror',
+        })
 
         create(ARTICLE, {
           title: 'A warming decade',
@@ -186,28 +211,26 @@ describe('publish-triggered translation with dependency cascade', () => {
   })
 
   it('9.3 — an existing target-locale dependency is never overwritten', () => {
-    setAutoTranslate({
-      translateOn: 'publish',
-      cascade: 'missing-only',
-      autoPublish: 'mirror',
-    })
-
     create(TOPIC, { name: 'urban design', slug: 'urban-design' }).then(
       (topic) => {
         publish(TOPIC, topic.documentId)
 
         // An editor has already written and corrected the German topic.
-        create(
-          TOPIC,
-          { name: 'Städtebau (edited by hand)', slug: 'staedtebau' },
-          'de'
-        )
         update(
           TOPIC,
           topic.documentId,
           { name: 'Städtebau (edited by hand)', slug: 'staedtebau' },
           'de'
         )
+
+        // Enabled only after the fixtures exist — with auto-translate already
+        // on, publishing the topic queues the topic's own trigger translation,
+        // which (correctly, for a trigger) overwrites the hand-edited German.
+        setAutoTranslate({
+          translateOn: 'publish',
+          cascade: 'missing-only',
+          autoPublish: 'mirror',
+        })
 
         create(ARTICLE, {
           title: 'Streets for people',
@@ -268,25 +291,20 @@ describe('publish-triggered translation with dependency cascade', () => {
             .should('eq', 200),
       },
       {
-        name: "publish with locale '*'",
-        slug: 'shape-wildcard',
+        name: 'publish with body data (what the admin panel sends)',
+        slug: 'shape-with-data',
         act: (id) =>
           cy
-            .api('POST', `${cm(ARTICLE, `/${id}/actions/publish`)}?locale=*`)
-            .its('status')
-            .should('eq', 200),
-      },
-      {
-        name: "update with status: 'published'",
-        slug: 'shape-update-status',
-        act: (id) =>
-          cy
-            .api('PUT', `${cm(ARTICLE, `/${id}`)}?locale=en&status=published`, {
-              title: 'Shape update status (edited)',
+            .api('POST', `${cm(ARTICLE, `/${id}/actions/publish`)}?locale=en`, {
+              title: 'Publish with body data (edited)',
             })
             .its('status')
             .should('eq', 200),
       },
+      // `publish({ locale: '*' })` and `update({ status: 'published' })` have
+      // no content-manager REST equivalent (CM validates a single body locale
+      // and always saves drafts on update) — those document-service shapes are
+      // covered by the middleware unit tests instead.
     ]
 
     shapes.forEach(({ name, slug, act }) => {
@@ -305,12 +323,6 @@ describe('publish-triggered translation with dependency cascade', () => {
   })
 
   it('9.6 — a draft-only German dependency is left alone and reported', () => {
-    setAutoTranslate({
-      translateOn: 'publish',
-      cascade: 'missing-only',
-      autoPublish: 'mirror',
-    })
-
     create(TOPIC, { name: 'shipping', slug: 'shipping' }).then((topic) => {
       publish(TOPIC, topic.documentId)
 
@@ -321,6 +333,14 @@ describe('publish-triggered translation with dependency cascade', () => {
         { name: 'Schifffahrt', slug: 'schifffahrt' },
         'de'
       )
+
+      // Enabled only after the fixtures exist, so the topic's publish above
+      // does not queue the topic's own trigger translation.
+      setAutoTranslate({
+        translateOn: 'publish',
+        cascade: 'missing-only',
+        autoPublish: 'mirror',
+      })
 
       create(ARTICLE, {
         title: 'Ships and ports',
@@ -383,6 +403,58 @@ describe('publish-triggered translation with dependency cascade', () => {
     )
   })
 
+  it("9.8 — an admin-panel publish yields a PUBLISHED translation under autoPublish: 'trigger'", () => {
+    // The production defaults. The CM publish controller issues
+    // update-then-publish; the update's queue row used to swallow the publish
+    // trigger whole, so the flag never reached the executor and the German row
+    // stayed a draft forever.
+    setAutoTranslate({ translateOn: 'save', cascade: 'off', autoPublish: 'trigger' })
+
+    create(ARTICLE, {
+      title: 'Published together',
+      description: 'Summary',
+      content: 'Body',
+      slug: 'published-together',
+    }).then((article) => {
+      publish(ARTICLE, article.documentId, 'en', {
+        title: 'Published together',
+        description: 'Summary',
+        content: 'Body',
+        slug: 'published-together',
+      })
+      cy.waitForQueue()
+
+      // The published row is the thing under test — a draft-only German
+      // article is exactly the bug.
+      readCm(ARTICLE, article.documentId, 'de', 'published').should(
+        'not.be.null'
+      )
+      logs().then((entries) => {
+        const live = entries.filter((e) => e.status !== 'cancelled')
+        expect(live.every((e) => e.status === 'success')).to.eq(true)
+        // The surviving trigger row for the publish carries the merged flag.
+        const last = [...live].sort((a, b) => a.id - b.id).pop()
+        expect(last.triggerPublished).to.eq(true)
+      })
+    })
+  })
+
+  it('9.9 — a plain draft save still yields only a draft', () => {
+    setAutoTranslate({ translateOn: 'save', cascade: 'off', autoPublish: 'trigger' })
+
+    create(ARTICLE, {
+      title: 'Stays a draft',
+      description: 'Summary',
+      content: 'Body',
+      slug: 'stays-a-draft',
+    }).then((article) => {
+      cy.waitForQueue()
+
+      readCm(ARTICLE, article.documentId, 'de').should('not.be.null')
+      readCm(ARTICLE, article.documentId, 'de', 'published').should('be.null')
+    })
+  })
+
   it('handles a dependency cycle without hanging or duplicating', () => {
     setAutoTranslate({
       translateOn: 'publish',
@@ -429,19 +501,22 @@ describe('publish-triggered translation with dependency cascade', () => {
   })
 
   it('bounds the fan-out and says so', () => {
-    setAutoTranslate({
-      translateOn: 'publish',
-      cascade: 'missing-only',
-      autoPublish: 'mirror',
-      cascadeMaxEntries: 2,
-    })
-
     const topicIds = []
     ;['bound-a', 'bound-b', 'bound-c'].forEach((slug) => {
       create(TOPIC, { name: slug, slug }).then((topic) => {
         publish(TOPIC, topic.documentId)
         topicIds.push(topic.documentId)
       })
+    })
+
+    // Enabled only after the fixtures exist, so the topic publishes above do
+    // not queue their own trigger translations (which would both inflate the
+    // log count and pre-create the German topics this test needs missing).
+    setAutoTranslate({
+      translateOn: 'publish',
+      cascade: 'missing-only',
+      autoPublish: 'mirror',
+      cascadeMaxEntries: 2,
     })
 
     cy.then(() => {

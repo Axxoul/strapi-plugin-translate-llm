@@ -439,6 +439,23 @@ describe('dedupe', () => {
     expect(translateEntity).toHaveBeenCalledTimes(1)
   })
 
+  it('drops a duplicate that adds no signal, even for a stronger live row', async () => {
+    const { service, rows } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+      rowAgeMs: 0,
+    })
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].triggerPublished).toBe(true)
+
+    // Let the kicked drain finish inside this test's harness — a drain leaking
+    // into the next test would run against that test's global strapi.
+    await service._drainQueue()
+  })
+
   it('re-queues once the previous translation has finished', async () => {
     const { service, rows } = load({
       settings: { ...enabled, cascadeLocales: ['en'] },
@@ -451,6 +468,230 @@ describe('dedupe', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0].status).toBe('success')
     expect(rows[1].status).toBe('pending')
+  })
+})
+
+describe('signal merging — the admin panel publishes as update-then-publish', () => {
+  it('the publish trigger upgrades the pending row instead of being dropped', async () => {
+    // rowAgeMs: 0 keeps the first row inside its settle window, exactly where
+    // the production incident sat (publish landed 70 ms after the row).
+    const { service, rows, translateEntity } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+      rowAgeMs: 0,
+    })
+
+    // The CM publish controller always saves the draft first, then publishes —
+    // two document-service actions milliseconds apart.
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].triggerPublished).toBe(true)
+
+    await service._drainQueue()
+
+    expect(translateEntity).toHaveBeenCalledTimes(1)
+    expect(translateEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ publish: true })
+    )
+  })
+
+  it('the publish flag survives the triggers arriving out of order', async () => {
+    const { service, rows, translateEntity } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+      rowAgeMs: 0,
+    })
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+    await service._drainQueue()
+
+    expect(rows).toHaveLength(1)
+    expect(translateEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ publish: true })
+    )
+  })
+
+  it('an upgrade lands during the settle window the executor is already waiting out', async () => {
+    // rowAgeMs: 0 makes the drain loop actually sleep the settle delay with a
+    // pre-fetched copy of the row — the exact window the production incident
+    // hit (row created at .125, publish landed at .195, settle ends at .425).
+    const { service, translateEntity } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+      rowAgeMs: 0,
+    })
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+    const drain = service._drainQueue()
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+    await drain
+
+    expect(translateEntity).toHaveBeenCalledTimes(1)
+    expect(translateEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ publish: true })
+    )
+  })
+
+  it('a publish arriving mid-translation queues a follow-up rather than losing the flag', async () => {
+    let publishDuringFlight: (() => Promise<void>) | null = null
+    const calls: boolean[] = []
+    const translateEntity = jest.fn(async (params: any) => {
+      calls.push(params.publish)
+      if (publishDuringFlight) {
+        const fire = publishDuringFlight
+        publishDuringFlight = null
+        await fire()
+      }
+      return {}
+    })
+
+    const { service, rows } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+      translateEntity,
+    })
+
+    publishDuringFlight = () =>
+      service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+    await service._drainQueue()
+
+    // First run finished as a draft (the flag came too late for it), the
+    // follow-up re-translated and published.
+    expect(calls).toEqual([false, true])
+    expect(rows.map((r) => r.status)).toEqual(['success', 'success'])
+  })
+
+  it('a direct trigger upgrades a pending cascade mirror row', async () => {
+    const { service, rows, translateEntity, tierMap } = load({
+      settings: {
+        ...enabled,
+        cascade: 'missing-only',
+        cascadeLocales: ['en'],
+      },
+      relations: { [`${ARTICLE}:a1`]: [{ uid: CATEGORY, documentId: 'c1' }] },
+      rowAgeMs: 0,
+    })
+    setTiers(tierMap, { [ARTICLE]: 1, [CATEGORY]: 0 })
+
+    // The cascade queues the category as a create-if-missing mirror row…
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+    // …then an editor publishes the category directly.
+    await service.triggerAutoTranslate(CATEGORY, 'c1', 'sv', true)
+
+    const category = rows.find((r) => r.contentType === CATEGORY)
+    expect(rows.filter((r) => r.contentType === CATEGORY)).toHaveLength(1)
+    expect(category).toMatchObject({
+      isTrigger: true,
+      publishMode: 'trigger',
+      triggerPublished: true,
+    })
+
+    await service._drainQueue()
+
+    // The editor acted on the category itself, so trigger semantics win:
+    // its translation is overwritten and published.
+    expect(translateEntity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentType: CATEGORY,
+        updateExisting: true,
+        publish: true,
+      })
+    )
+  })
+
+  it('a cascade mirror row never downgrades a pending trigger row', async () => {
+    const { service, rows, tierMap } = load({
+      settings: {
+        ...enabled,
+        cascade: 'missing-only',
+        cascadeLocales: ['en'],
+      },
+      relations: { [`${ARTICLE}:a1`]: [{ uid: CATEGORY, documentId: 'c1' }] },
+      rowAgeMs: 0,
+    })
+    setTiers(tierMap, { [ARTICLE]: 1, [CATEGORY]: 0 })
+
+    await service.triggerAutoTranslate(CATEGORY, 'c1', 'sv', true)
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', false)
+
+    const category = rows.find((r) => r.contentType === CATEGORY)
+    expect(category).toMatchObject({
+      isTrigger: true,
+      publishMode: 'trigger',
+      triggerPublished: true,
+    })
+
+    // Let the kicked drain finish inside this test's harness — a drain leaking
+    // into the next test would run against that test's global strapi.
+    await service._drainQueue()
+  })
+
+  it("another process's live row absorbs the publish flag instead of eating it", async () => {
+    // The foreign row was queued by the other dyno's update action; our
+    // process only ever sees the publish. The DB row stays the arbiter.
+    const { service, rows, translateEntity } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+    })
+
+    rows.push({
+      id: 999,
+      documentId: 'log-999',
+      contentType: ARTICLE,
+      entryDocumentId: 'a1',
+      sourceLocale: 'sv',
+      targetLocale: 'en',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 5000).toISOString(),
+      isTrigger: true,
+      publishMode: 'trigger',
+      triggerPublished: false,
+      attempts: 0,
+    })
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].triggerPublished).toBe(true)
+
+    await service._drainQueue()
+    expect(translateEntity).toHaveBeenCalledTimes(1)
+    expect(translateEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ publish: true })
+    )
+  })
+
+  it("a row already translating on another process gets a follow-up, not an upgrade", async () => {
+    const { service, rows, translateEntity } = load({
+      settings: { ...enabled, cascadeLocales: ['en'] },
+    })
+
+    rows.push({
+      id: 500,
+      documentId: 'log-500',
+      contentType: ARTICLE,
+      entryDocumentId: 'a1',
+      sourceLocale: 'sv',
+      targetLocale: 'en',
+      status: 'translating',
+      createdAt: new Date(Date.now() - 5000).toISOString(),
+      isTrigger: true,
+      publishMode: 'trigger',
+      triggerPublished: false,
+      attempts: 1,
+    })
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+
+    // The mid-flight row is untouched; a follow-up row carries the flag.
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ status: 'translating', triggerPublished: false })
+    expect(rows[1]).toMatchObject({ status: 'pending', triggerPublished: true })
+
+    await service._drainQueue()
+    expect(translateEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ publish: true })
+    )
   })
 })
 

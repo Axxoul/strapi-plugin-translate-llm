@@ -163,6 +163,30 @@ describe('publishedNow', () => {
     expect(triggerAutoTranslate).toHaveBeenCalledWith(ARTICLE, 'a1', 'sv', true)
   })
 
+  it('an admin-panel publish fires two triggers: the draft save, then the publish', async () => {
+    // The content-manager publish controller always issues update-then-publish
+    // through the document service — both pass through this middleware. The
+    // queue merges the pair; this end of the contract is that both arrive,
+    // with the publish flag on the second.
+    const { run, triggerAutoTranslate } = setup()
+
+    await run({
+      action: 'update',
+      contentType: ARTICLE,
+      params: { documentId: 'a1', locale: 'sv' },
+    })
+    await run({
+      action: 'publish',
+      contentType: ARTICLE,
+      params: { documentId: 'a1', locale: 'sv' },
+    })
+
+    expect(triggerAutoTranslate.mock.calls).toEqual([
+      [ARTICLE, 'a1', 'sv', false],
+      [ARTICLE, 'a1', 'sv', true],
+    ])
+  })
+
   it('a plain draft save does not', async () => {
     const { run, triggerAutoTranslate } = setup()
 
