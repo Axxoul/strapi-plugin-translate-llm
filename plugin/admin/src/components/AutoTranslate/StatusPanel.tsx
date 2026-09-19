@@ -6,6 +6,12 @@ import {
   Button,
   Loader,
   Badge,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from '@strapi/design-system'
 import { Cross, Check, WarningCircle } from '@strapi/icons'
 import { Link } from 'react-router-dom'
@@ -165,7 +171,6 @@ const StatusPanel = () => {
         padding={4}
         shadow="filterShadow"
         hasRadius
-        height="100%"
       >
         <Flex direction="column" alignItems="stretch" height="100%">
           <Typography variant="sigma" textColor="neutral600">
@@ -194,7 +199,6 @@ const StatusPanel = () => {
       padding={4}
       shadow="filterShadow"
       hasRadius
-      height="100%"
     >
       <Flex justifyContent="space-between" alignItems="center" paddingBottom={3}>
         <Flex gap={2} alignItems="center">
@@ -229,17 +233,55 @@ const StatusPanel = () => {
         </Button>
       </Flex>
       <QueueSummary />
-      <Flex direction="column" gap={2}>
-        {logs.map((log) => (
-          <Box
-            key={log.id}
-            background={statusColor(log.status)}
-            padding={2}
-            hasRadius
-          >
-            <Flex justifyContent="space-between" alignItems="center">
-              <Flex gap={2} alignItems="center">
-                <StatusIcon status={log.status} />
+      <Table colCount={5} rowCount={logs.length}>
+        <Thead>
+          <Tr>
+            <Th>
+              <Typography variant="sigma">
+                {formatMessage({
+                  id: getTranslation('auto-translate.logs.col.entry'),
+                  defaultMessage: 'ENTRY',
+                })}
+              </Typography>
+            </Th>
+            <Th>
+              <Typography variant="sigma">
+                {formatMessage({
+                  id: getTranslation('auto-translate.logs.col.type'),
+                  defaultMessage: 'TYPE',
+                })}
+              </Typography>
+            </Th>
+            <Th>
+              <Typography variant="sigma">
+                {formatMessage({
+                  id: getTranslation('auto-translate.logs.col.locales'),
+                  defaultMessage: 'LOCALES',
+                })}
+              </Typography>
+            </Th>
+            <Th>
+              <Typography variant="sigma">
+                {formatMessage({
+                  id: getTranslation('auto-translate.logs.col.status'),
+                  defaultMessage: 'STATUS',
+                })}
+              </Typography>
+            </Th>
+            <Th>
+              <Typography variant="sigma">
+                {formatMessage({
+                  id: getTranslation('auto-translate.logs.col.error'),
+                  defaultMessage: 'ERROR',
+                })}
+              </Typography>
+            </Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {logs.map((log) => (
+            <Tr key={log.id}>
+              <Td>
                 <Link
                   to={buildEntityLink(log.contentType, log.entryDocumentId, log.targetLocale)}
                   style={{ textDecoration: 'none', color: 'inherit' }}
@@ -248,38 +290,50 @@ const StatusPanel = () => {
                     {log.displayName || shortContentType(log.contentType)}
                   </Typography>
                 </Link>
-              </Flex>
-              <Badge
-                backgroundColor={statusColor(log.status)}
-                textColor={
-                  log.status === 'success'
-                    ? 'success700'
-                    : log.status === 'failed'
-                      ? 'danger700'
-                      : 'neutral700'
-                }
-              >
-                {log.status}
-              </Badge>
-            </Flex>
-            <Box paddingTop={1} paddingLeft={6}>
-              <Typography variant="pi" textColor="neutral500">
-                {log.sourceLocale} &rarr; {log.targetLocale}
-              </Typography>
-              <Typography variant="pi" textColor="neutral400">
-                {' '}&middot;{' '}{shortContentType(log.contentType)}
-              </Typography>
-            </Box>
-            {log.status === 'failed' && log.error && (
-              <Box paddingTop={1} paddingLeft={6}>
-                <Typography variant="pi" textColor="danger600">
-                  {log.error}
+              </Td>
+              <Td>
+                <Typography variant="omega" textColor="neutral700">
+                  {shortContentType(log.contentType)}
                 </Typography>
-              </Box>
-            )}
-          </Box>
-        ))}
-      </Flex>
+              </Td>
+              <Td>
+                <Typography variant="omega" textColor="neutral700">
+                  {log.sourceLocale} &rarr; {log.targetLocale}
+                </Typography>
+              </Td>
+              <Td>
+                <Flex gap={2} alignItems="center">
+                  <StatusIcon status={log.status} />
+                  <Badge
+                    backgroundColor={statusColor(log.status)}
+                    textColor={
+                      log.status === 'success'
+                        ? 'success700'
+                        : log.status === 'failed'
+                          ? 'danger700'
+                          : 'neutral700'
+                    }
+                  >
+                    {log.status}
+                  </Badge>
+                </Flex>
+              </Td>
+              <Td>
+                {log.error && (
+                  <Typography
+                    variant="pi"
+                    textColor="danger600"
+                    ellipsis
+                    title={log.error}
+                  >
+                    {log.error}
+                  </Typography>
+                )}
+              </Td>
+            </Tr>
+          ))}
+        </Tbody>
+      </Table>
     </Box>
   )
 }

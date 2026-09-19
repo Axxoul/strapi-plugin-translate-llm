@@ -39,6 +39,9 @@ const SETTLE_MS = 300
 /** Attempts before a row is given up on. No exponential backoff — it fails loudly. */
 const MAX_ATTEMPTS = 3
 
+/** Caps the stored/logged error text so a pathological stack trace can't bloat a row. */
+const MAX_ERROR_LENGTH = 1000
+
 /** A live row older than this is surfaced as stuck rather than quietly waiting. */
 const STALE_MS = 15 * 60 * 1000
 
@@ -165,6 +168,29 @@ let cancelRequested = false
 let planCounter = 0
 
 let settingsCache: { value: AutoTranslateSettings; at: number } | null = null
+
+/**
+ * Human-readable failure text for a queue row.
+ *
+ * Strapi's Yup validation throws with an aggregate `message` like
+ * "2 errors occurred" — useless in the log. The actual per-field messages
+ * live in `err.errors` (a plain string array). Not every thrown error is a
+ * Yup error, so `errors` is only trusted when it is actually an array.
+ */
+function describeError(error: unknown): string {
+  const detail =
+    error &&
+    typeof error === 'object' &&
+    Array.isArray((error as any).errors) &&
+    (error as any).errors.length > 0
+      ? (error as any).errors.join('; ')
+      : error instanceof Error
+        ? error.message
+        : String(error)
+  return detail.length > MAX_ERROR_LENGTH
+    ? `${detail.slice(0, MAX_ERROR_LENGTH)}…`
+    : detail
+}
 
 function guardKey(
   contentType: string,
@@ -606,13 +632,22 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
     const ct = strapi.contentTypes[contentType]
     const fallback = ct?.info?.displayName || contentType
 
+    const mainField =
+      (ct as any)?.pluginOptions?.['content-manager']?.mainField || 'title'
+    // Not every content type has all three candidate fields (e.g. `review`
+    // has `name` but no `title`) — requesting a field that doesn't exist
+    // throws, so filter down to what the content type actually has first.
+    const attributes = (ct as any)?.attributes ?? {}
+    const candidates = [...new Set([mainField, 'title', 'name'])].filter(
+      (field) => field in attributes
+    )
+    if (candidates.length === 0) return fallback
+
     try {
-      const mainField =
-        (ct as any)?.pluginOptions?.['content-manager']?.mainField || 'title'
       const doc = await strapi.documents(contentType as any).findOne({
         documentId,
         locale: sourceLocale,
-        fields: [mainField, 'title', 'name'] as any,
+        fields: candidates as any,
       })
       if (!doc) return fallback
       return (
@@ -621,7 +656,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
         (doc as any).name ||
         fallback
       )
-    } catch {
+    } catch (error) {
+      strapi.log.debug(
+        `[auto-translate] could not resolve display name for ${contentType}:${documentId}: ${
+          (error as Error)?.message ?? error
+        }`
+      )
       return fallback
     }
   },
@@ -863,7 +903,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 
       await this._setStatus(row.documentId, 'success')
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = describeError(error)
       strapi.log.error(
         `[auto-translate] Failed ${row.contentType}:${row.entryDocumentId} -> ${row.targetLocale}: ${message}`
       )

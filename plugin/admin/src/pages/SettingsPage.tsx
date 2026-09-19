@@ -273,7 +273,7 @@ const SettingsPage = () => {
         <Layouts.Content>
           {/* Auto-Translate row: settings + recent logs side by side */}
           <Grid.Root gap={6}>
-            <Grid.Item col={6} s={12}>
+            <Grid.Item col={12} s={12}>
               <Box
                 background="neutral0"
                 padding={6}
@@ -619,11 +619,11 @@ const SettingsPage = () => {
               </Box>
             </Grid.Item>
 
-            <Grid.Item col={3} s={12}>
+            <Grid.Item col={12} s={12}>
               <StatusPanel />
             </Grid.Item>
 
-            <Grid.Item col={3} s={12}>
+            <Grid.Item col={12} s={12}>
               <BatchTranslateStatusPanel />
             </Grid.Item>
           </Grid.Root>

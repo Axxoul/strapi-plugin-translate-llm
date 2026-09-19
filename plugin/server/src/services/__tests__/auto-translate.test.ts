@@ -160,6 +160,57 @@ describe('auto-translate settings', () => {
   })
 })
 
+describe('_displayName', () => {
+  const PRODUCT = 'api::product.product'
+  const REVIEW = 'api::review.review'
+  const CUSTOM = 'api::custom.custom'
+
+  it('filters the candidate fields down to attributes the content type actually has', async () => {
+    const { service, strapi } = load({
+      contentTypes: {
+        [PRODUCT]: { localizations: { sv: ['p1'] }, attributes: ['title'] },
+      },
+    })
+
+    await service._displayName(PRODUCT, 'p1', 'sv')
+
+    expect(strapi.documents(PRODUCT).findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ fields: ['title'] })
+    )
+  })
+
+  it('drops "title" from the query when the type only has "name" (e.g. review)', async () => {
+    const { service, strapi } = load({
+      contentTypes: {
+        [REVIEW]: { localizations: { sv: ['r1'] }, attributes: ['name'] },
+      },
+    })
+
+    await service._displayName(REVIEW, 'r1', 'sv')
+
+    expect(strapi.documents(REVIEW).findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ fields: ['name'] })
+    )
+  })
+
+  it('returns the content-type fallback without querying when no candidate field exists', async () => {
+    const { service, strapi } = load({
+      contentTypes: {
+        [CUSTOM]: {
+          localizations: { sv: ['x1'] },
+          attributes: [],
+          displayName: 'Custom Thing',
+        },
+      },
+    })
+
+    const name = await service._displayName(CUSTOM, 'x1', 'sv')
+
+    expect(name).toBe('Custom Thing')
+    expect(strapi.documents(CUSTOM).findOne).not.toHaveBeenCalled()
+  })
+})
+
 describe('auto-translate trigger — Rule 0, defaults unchanged', () => {
   it.each([true, false])(
     'writes exactly the parameters the pre-cascade release wrote (publishedNow=%s)',
@@ -728,6 +779,28 @@ describe('queue execution', () => {
     expect(rows[0].status).toBe('failed')
     expect(rows[0].error).toBe('provider exploded')
     expect(rows[1].status).toBe('success')
+  })
+
+  it('stores the per-field Yup messages instead of the useless aggregate message', async () => {
+    const validationError = Object.assign(new Error('2 errors occurred'), {
+      errors: [
+        'product_options is required',
+        'product_category is required',
+      ],
+    })
+    const translateEntity = jest
+      .fn<any>()
+      .mockRejectedValueOnce(validationError)
+
+    const { service, rows } = load({ settings: enabled, translateEntity })
+
+    await service.triggerAutoTranslate(ARTICLE, 'a1', 'sv', true)
+    await service._drainQueue()
+
+    expect(rows[0].status).toBe('failed')
+    expect(rows[0].error).toBe(
+      'product_options is required; product_category is required'
+    )
   })
 
   it('gives up after the attempt limit rather than looping forever', async () => {

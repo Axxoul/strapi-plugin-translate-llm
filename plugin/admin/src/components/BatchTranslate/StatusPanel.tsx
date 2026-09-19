@@ -58,7 +58,6 @@ const BatchTranslateStatusPanel = () => {
         padding={4}
         shadow="filterShadow"
         hasRadius
-        height="100%"
       >
         <Flex direction="column" alignItems="stretch" height="100%">
           <Typography variant="sigma" textColor="neutral600">
@@ -91,7 +90,6 @@ const BatchTranslateStatusPanel = () => {
       padding={4}
       shadow="filterShadow"
       hasRadius
-      height="100%"
     >
       <Flex
         justifyContent="space-between"
