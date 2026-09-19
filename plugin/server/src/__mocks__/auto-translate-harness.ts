@@ -41,6 +41,8 @@ export type ContentTypeFixture = {
   localized?: boolean
   draftAndPublish?: boolean
   displayName?: string
+  /** Attribute names the content type schema actually has (e.g. `['title']`). */
+  attributes?: string[]
   /** Documents that exist per locale: `locale → Set<documentId>` */
   localizations?: Record<string, string[]>
   /** Documents with a published row per locale. */
@@ -93,7 +95,9 @@ export function createHarness(options: HarnessOptions = {}) {
       options: { draftAndPublish: fixture.draftAndPublish !== false },
       pluginOptions: { i18n: { localized: fixture.localized !== false } },
       info: { displayName: fixture.displayName ?? uid },
-      attributes: {},
+      attributes: Object.fromEntries(
+        (fixture.attributes ?? []).map((name) => [name, { type: 'string' }])
+      ),
     }
   }
 
