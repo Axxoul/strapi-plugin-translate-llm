@@ -21,10 +21,18 @@ export interface TranslateController extends Core.Controller {
   translateBatchResumeJob: Core.ControllerHandler
   translateBatchCancelJob: Core.ControllerHandler
   translateBatchJobStatus: Core.ControllerHandler
-  translateBatchUpdate: Core.ControllerHandler
+  translateBatchChanged: Core.ControllerHandler
+  translateBatchChangedStatus: Core.ControllerHandler
   report: Core.ControllerHandler
   usageEstimate: Core.ControllerHandler
   usageEstimateCollection: Core.ControllerHandler
+}
+
+/** `Authorization: Bearer <token>` — null when absent or malformed. */
+function bearerToken(ctx: any): string | null {
+  const header = (ctx.request?.headers?.authorization as string) || ''
+  const match = header.match(/^Bearer\s+(.+)$/i)
+  return match ? match[1] : null
 }
 
 const translateBodySchema = z.object({
@@ -48,11 +56,6 @@ const idQuerySchema = z.object({
   documentId: z.string(),
 })
 
-const batchUpdateBodySchema = z.object({
-  sourceLocale: z.string(),
-  updatedEntryIDs: z.array(z.string()),
-})
-
 const usageEstimateBodySchema = z.object({
   documentId: z.string(),
   contentType: z.string(),
@@ -63,6 +66,18 @@ const usageEstimateCollectionBodySchema = z.object({
   contentType: z.string(),
   sourceLocale: z.string(),
   targetLocale: z.string(),
+})
+
+const batchChangedBodySchema = z.object({
+  since: z.string().optional(),
+  targetLocale: z.string(),
+  autoPublish: z.enum(['draft', 'mirror', 'publish']).optional(),
+  sourceLocale: z.string().optional(),
+  contentTypes: z.array(z.string()).optional(),
+})
+
+const batchChangedStatusQuerySchema = z.object({
+  planId: z.string().optional(),
 })
 
 export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
@@ -240,22 +255,83 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
       },
     }
   },
-  async translateBatchUpdate(ctx) {
-    const { data, error, success } = batchUpdateBodySchema.safeParse(
+  async translateBatchChanged(ctx) {
+    const config = strapi.config.get<TranslateConfig>('plugin::translate')
+    if (!config.changedBatchToken) return ctx.notFound()
+
+    const token = bearerToken(ctx)
+    if (!token || token !== config.changedBatchToken) return ctx.unauthorized()
+
+    const { data, error, success } = batchChangedBodySchema.safeParse(
       ctx.request.body
     )
+    if (!success) return ctx.badRequest({ message: 'request data invalid', error })
 
-    if (!success) {
-      return ctx.badRequest({ message: 'request data invalid', error })
+    const now = Date.now()
+    let since: Date
+    if (data.since === undefined) {
+      since = new Date(now - 24 * 60 * 60 * 1000)
+    } else {
+      since = new Date(data.since)
+      if (Number.isNaN(since.getTime()) || since.getTime() > now) {
+        return ctx.badRequest({
+          message: 'since must be a valid ISO 8601 timestamp not in the future',
+        })
+      }
+    }
+    const sinceIso = since.toISOString()
+
+    const sourceLocale = await getService('batch-changed').resolveSourceLocale(
+      data.sourceLocale
+    )
+    if (!sourceLocale) {
+      return ctx.badRequest({
+        message:
+          'sourceLocale could not be resolved; set masterLocale in auto-translate settings or pass sourceLocale',
+      })
     }
 
-    const { updatedEntryIDs, sourceLocale } = data
+    const { targetLocale, contentTypes } = data
 
-    ctx.body = {
-      data: await getService('translate').batchUpdate({
-        updatedEntryIDs,
+    const publishMode = data.autoPublish ?? 'draft'
+    try {
+      const result = await getService('batch-changed').queueChanged({
+        since: sinceIso,
         sourceLocale,
-      }),
+        targetLocale,
+        publishMode,
+        contentTypes,
+      })
+      ctx.status = 202
+      ctx.body = {
+        data: {
+          since: sinceIso,
+          sourceLocale,
+          targetLocale,
+          publishMode,
+          ...result,
+        },
+      }
+    } catch (error) {
+      handleContextError(ctx, error, 'BatchChanged.queueError')
+    }
+  },
+  async translateBatchChangedStatus(ctx) {
+    const config = strapi.config.get<TranslateConfig>('plugin::translate')
+    if (!config.changedBatchToken) return ctx.notFound()
+
+    const token = bearerToken(ctx)
+    if (!token || token !== config.changedBatchToken) return ctx.unauthorized()
+
+    const { data, success } = batchChangedStatusQuerySchema.safeParse(ctx.query)
+    if (!success) return ctx.badRequest({ message: 'request data invalid' })
+
+    try {
+      ctx.body = {
+        data: await getService('batch-changed').getStatus(data.planId),
+      }
+    } catch (error) {
+      handleContextError(ctx, error, 'BatchChanged.statusError')
     }
   },
   async report(ctx) {

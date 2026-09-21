@@ -4,7 +4,6 @@ import batchTranslateLog from './batch-translate-log'
 import provider from './provider'
 import settings from './settings'
 import translate from './translate'
-import updatedEntry from './updated-entry'
 
 export default {
   'auto-translate': autoTranslate,
@@ -13,5 +12,4 @@ export default {
   provider,
   settings,
   translate,
-  'updated-entry': updatedEntry,
 }

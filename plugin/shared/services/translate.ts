@@ -58,9 +58,5 @@ export interface TranslateService {
   batchTranslatePauseJob: (id: Data.DocumentID) => Promise<BatchTranslateJob>
   batchTranslateResumeJob: (id: Data.DocumentID) => Promise<BatchTranslateJob>
   batchTranslateCancelJob: (id: Data.DocumentID) => Promise<BatchTranslateJob>
-  batchUpdate: (params: {
-    updatedEntryIDs: Data.DocumentID[]
-    sourceLocale: string
-  }) => Promise<{ result: 'success' }>
   contentTypes: () => Promise<TieredReportData>
 }

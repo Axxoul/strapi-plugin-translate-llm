@@ -1,14 +1,19 @@
 import { jest } from '@jest/globals'
 import { Context } from 'koa'
 
-export default (body: unknown, query?: unknown): Context => {
+export default (
+  body: unknown,
+  query?: unknown,
+  headers?: Record<string, string>
+): Context => {
   const chunks: string[] = []
   return {
     body: {},
     request: {
       body,
+      headers: headers ?? {},
     },
-    query,
+    query: query ?? {},
     respond: true,
     res: {
       writableEnded: false,
@@ -21,6 +26,7 @@ export default (body: unknown, query?: unknown): Context => {
     },
     badRequest: jest.fn(),
     notFound: jest.fn(),
+    unauthorized: jest.fn(),
     forbidden: jest.fn(),
     payloadTooLarge: jest.fn(),
     uriTooLong: jest.fn(),

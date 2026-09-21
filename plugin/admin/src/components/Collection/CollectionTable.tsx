@@ -20,8 +20,6 @@ import { useTranslateBatchMutation } from '../../services/translation'
 import { ContentTypeTranslationReport } from '@shared/types/report'
 import useAlert from '../../Hooks/useAlert'
 import { ActionType } from './actions'
-import useUpdateCollection from '../../Hooks/useUpdateCollection'
-import { BatchUpdateTable } from '../BatchUpdateTable'
 
 type HandleActionProps = {
   action: ActionType
@@ -38,9 +36,6 @@ const CollectionTable = () => {
     estimateUsageForCollection,
     estimateUsageForCollectionResult: expectedCost,
   } = useUsage()
-
-  const { updates, refetch, dismissUpdates, startUpdate } =
-    useUpdateCollection()
 
   const [translateBatch, translateBatchResult] = useTranslateBatchMutation()
   const [pauseTranslation, pauseTranslationResult] =
@@ -66,7 +61,6 @@ const CollectionTable = () => {
     useState<ContentTypeTranslationReport | null>(null)
   const [action, setAction] = useState<ActionType | null>(null)
   const [loading, setLoading] = useState(false)
-  const [selectedUpdateIDs, setSelectedUpdateIDs] = useState<Array<string>>([])
 
   useEffect(() => {
     if (
@@ -193,28 +187,6 @@ const CollectionTable = () => {
             documentId: collection.localeReports[targetLocale].job.documentId,
           })
           break
-        case 'update':
-          if (selectedUpdateIDs.length === 0) {
-            handleNotification({
-              type: 'warning',
-              id: 'batch-translate.dialog.translate.nothing-selected',
-              defaultMessage: 'No updates selected',
-            })
-            setLoading(false)
-
-            return
-          }
-
-          if (!sourceLocale) {
-            dialogFieldMissing('source-locale')
-            return
-          }
-
-          await startUpdate({
-            updatedEntryIDs: selectedUpdateIDs,
-            sourceLocale,
-          })
-          break
         default:
           console.log('Action not implemented')
           break
@@ -251,7 +223,6 @@ const CollectionTable = () => {
           <TierTable
             contentTypes={tierGroup.contentTypes}
             locales={locales}
-            updates={updates}
             onAction={handleAction}
           />
         </div>
@@ -374,71 +345,6 @@ const CollectionTable = () => {
                           })}
                         </Typography>
                       )}
-                  </>
-                )}
-                {action === 'update' && collection && (
-                  <>
-                    <Field.Root>
-                      <Field.Label>
-                        {formatMessage({
-                          id: getTranslation('batch-update.sourceLocale'),
-                        })}
-                      </Field.Label>
-                      <SingleSelect
-                        onChange={(value) =>
-                          typeof value === 'string'
-                            ? setSourceLocale(value)
-                            : console.error('Invalid value')
-                        }
-                        value={sourceLocale}
-                      >
-                        {locales.map(({ name, code }) => {
-                          return (
-                            <SingleSelectOption key={code} value={code}>
-                              {name}
-                            </SingleSelectOption>
-                          )
-                        })}
-                      </SingleSelect>
-                    </Field.Root>
-                    <BatchUpdateTable
-                      updates={updates.filter(
-                        (update) =>
-                          update?.contentType === collection.contentType
-                      )}
-                      selectedUpdateIDs={selectedUpdateIDs}
-                      setSelectedUpdateIDs={setSelectedUpdateIDs}
-                    />
-                    <Flex justifyContent="space-between">
-                      <Button
-                        onClick={() =>
-                          setSelectedUpdateIDs(
-                            updates.map((update) => update.documentId)
-                          )
-                        }
-                        variant="secondary"
-                      >
-                        {formatMessage({
-                          id: getTranslation(`batch-update.select-all`),
-                          defaultMessage: 'select all',
-                        })}
-                      </Button>
-                      <Button
-                        onClick={() =>
-                          dismissUpdates(selectedUpdateIDs).then(() => {
-                            setSelectedUpdateIDs([])
-                            refetch()
-                          })
-                        }
-                        variant="danger"
-                        disabled={selectedUpdateIDs.length === 0}
-                      >
-                        {formatMessage({
-                          id: getTranslation(`batch-update.dismiss`),
-                          defaultMessage: 'dismiss selected',
-                        })}
-                      </Button>
-                    </Flex>
                   </>
                 )}
               </Flex>

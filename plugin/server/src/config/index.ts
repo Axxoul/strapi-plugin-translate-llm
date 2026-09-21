@@ -3,7 +3,6 @@ import { TranslateProviderOptions } from '../../../shared/types/provider'
 import {
   AUTO_PUBLISH_MODES,
   AutoPublishMode,
-  BATCH_AUTO_PUBLISH_MODES,
   BatchAutoPublishMode,
   CASCADE_MODES,
   CascadeMode,
@@ -70,12 +69,6 @@ export type TranslateConfig = {
   autoPublish: AutoPublishMode
 
   /**
-   * Publish policy for `batchUpdate` (the "re-translate updated entries" path).
-   * `draft` reproduces the hardcoded `publish: false` this replaced.
-   */
-  updatedEntryAutoPublish: BatchAutoPublishMode
-
-  /**
    * What to do with target-locale entries when the source entry is unpublished.
    * Never cascaded — it applies to the trigger document only.
    */
@@ -95,6 +88,14 @@ export type TranslateConfig = {
 
   /** Content types the cascade never walks into. */
   cascadeIgnoreContentTypes: string[]
+
+  /**
+   * Shared secret for `POST /translate/batch/changed` and its status endpoint.
+   * These routes are `auth: false` (n8n has no admin session), so this bearer
+   * token is the only gate. Unset ('') means the routes 404 rather than accept
+   * every request.
+   */
+  changedBatchToken: string
 }
 
 export default {
@@ -118,12 +119,12 @@ export default {
       translateOn: 'save',
       cascade: 'off',
       autoPublish: 'trigger',
-      updatedEntryAutoPublish: 'draft',
       onSourceUnpublish: 'ignore',
       cascadeMaxEntries: 50,
       cascadeMaxDepth: 5,
       cascadeLocales: null,
       cascadeIgnoreContentTypes: [],
+      changedBatchToken: '',
     }
   },
   validator({
@@ -136,12 +137,12 @@ export default {
     translateOn,
     cascade,
     autoPublish,
-    updatedEntryAutoPublish,
     onSourceUnpublish,
     cascadeMaxEntries,
     cascadeMaxDepth,
     cascadeLocales,
     cascadeIgnoreContentTypes,
+    changedBatchToken,
   }: Partial<TranslateConfig>) {
     if (provider === 'dummy' && process.env.NODE_ENV !== 'test') {
       console.warn(
@@ -191,11 +192,6 @@ export default {
     assertEnum('cascade', cascade, CASCADE_MODES)
     assertEnum('autoPublish', autoPublish, AUTO_PUBLISH_MODES)
     assertEnum(
-      'updatedEntryAutoPublish',
-      updatedEntryAutoPublish,
-      BATCH_AUTO_PUBLISH_MODES
-    )
-    assertEnum(
       'onSourceUnpublish',
       onSourceUnpublish,
       ON_SOURCE_UNPUBLISH_VALUES
@@ -217,6 +213,9 @@ export default {
         cascadeIgnoreContentTypes.some((l) => typeof l !== 'string'))
     ) {
       throw new Error('cascadeIgnoreContentTypes has to be an array of strings')
+    }
+    if (changedBatchToken !== undefined && typeof changedBatchToken !== 'string') {
+      throw new Error('changedBatchToken has to be a string')
     }
   },
 }

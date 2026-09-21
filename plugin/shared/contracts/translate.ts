@@ -117,26 +117,6 @@ export declare namespace TranslateBatchJobStatus {
 }
 
 /**
- * POST /translate/batch/updates - Update the translations of a batch of entities
- */
-export declare namespace TranslateBatchUpdate {
-  export interface Request {
-    query: {}
-    body: {
-      sourceLocale: string
-      updatedEntryIDs: Data.DocumentID[]
-    }
-  }
-
-  export type Response =
-    | { data: { result: 'success' } }
-    | {
-        data: null
-        error: errors.ApplicationError
-      }
-}
-
-/**
  * POST /translate/report - Get a report of the translation status of all content types
  */
 export declare namespace ContentTypesTranslationReport {
@@ -170,6 +150,76 @@ export declare namespace UsageEstimate {
 
   export type Response =
     | { data: number }
+    | {
+        data: null
+        error: errors.ApplicationError
+      }
+}
+
+/**
+ * POST /translate/batch/changed - Translate everything whose source changed
+ * since a timestamp, in dependency order. Driven nightly by n8n.
+ * Bearer-token auth (`changedBatchToken`), not admin session — `config: { auth: false }`.
+ */
+export declare namespace TranslateBatchChanged {
+  export interface Request {
+    query: {}
+    body: {
+      since?: string
+      targetLocale: string
+      autoPublish?: 'draft' | 'mirror' | 'publish'
+      sourceLocale?: string
+      contentTypes?: string[]
+    }
+  }
+
+  export interface ByContentType {
+    uid: string
+    tier: number
+    changed: number
+  }
+
+  export interface ResponseData {
+    planId: string
+    since: string
+    sourceLocale: string
+    targetLocale: string
+    publishMode: 'draft' | 'mirror' | 'publish'
+    total: number
+    queued: number
+    skipped: number
+    byContentType: Array<ByContentType & { queued: number }>
+  }
+
+  export type Response =
+    | { data: ResponseData }
+    | {
+        data: null
+        error: errors.ApplicationError
+      }
+}
+
+/**
+ * GET /translate/batch/changed/status - Poll queue status for a changed-batch
+ * run. Same bearer-token auth as `POST /translate/batch/changed` — n8n cannot
+ * reach the admin-only `GET /auto-translate/queue`.
+ */
+export declare namespace TranslateBatchChangedStatus {
+  export interface Request {
+    query: { planId?: string }
+    body: {}
+  }
+
+  export interface StatusData {
+    pending: number
+    translating: number
+    failed: number
+    running: boolean
+    oldestPendingAt: string | null
+  }
+
+  export type Response =
+    | { data: StatusData }
     | {
         data: null
         error: errors.ApplicationError

@@ -179,6 +179,7 @@ const initSetup = async ({
           translate: {},
           format: {},
           chunks: {},
+          'batch-changed': {},
           'batch-translate-job': () => {
             const uid = 'plugin::translate.batch-translate-job'
             return {
@@ -208,6 +209,9 @@ const initSetup = async ({
           ).default({ strapi: mock as Core.Strapi })
           this.services.format = (await import('../services/format')).default()
           this.services.chunks = (await import('../services/chunks')).default()
+          this.services['batch-changed'] = (
+            await import('../services/batch-changed')
+          ).default({ strapi: mock as Core.Strapi })
           this.controllers.translate = translateController({
             strapi: mock as Core.Strapi,
           })

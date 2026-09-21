@@ -246,7 +246,6 @@ async function cleanData() {
   await cleanCollectionType('api::writer.writer')
   await cleanCollectionType('api::topic.topic')
   await cleanCollectionType('api::dossier.dossier')
-  await cleanCollectionType('plugin::translate.updated-entry')
   await cleanCollectionType('plugin::translate.auto-translate-log')
 }
 

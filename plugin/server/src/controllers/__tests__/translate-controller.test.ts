@@ -140,6 +140,126 @@ describe('translate controller', () => {
     expect(mockTranslateService).not.toHaveBeenCalled()
   })
 
+  describe('translateBatchChanged', () => {
+    const mockResolveSourceLocale = jest.fn<any>()
+    const mockQueueChanged = jest.fn<any>()
+
+    beforeEach(async () => {
+      jest.resetModules()
+      jest.mock('../../services/batch-changed', () => {
+        return () => ({
+          resolveSourceLocale: mockResolveSourceLocale,
+          queueChanged: mockQueueChanged,
+          getStatus: jest.fn(),
+        })
+      })
+    })
+
+    afterEach(() => {
+      Object.defineProperty(global, 'strapi', {})
+      mockResolveSourceLocale.mockReset()
+      mockQueueChanged.mockReset()
+    })
+
+    it('404s when no changedBatchToken is configured', async () => {
+      await setup({
+        config: { changedBatchToken: '' },
+        contentTypes: { 'api::first.first': simpleContentType },
+      })
+      const ctx = createContext({ targetLocale: 'en' }, undefined, {
+        authorization: 'Bearer whatever',
+      })
+
+      await strapi
+        .plugin('translate')
+        .controller<TranslateController>('translate')
+        .translateBatchChanged(
+          ctx,
+          jest.fn(() => Promise.resolve())
+        )
+
+      expect(ctx.notFound).toHaveBeenCalled()
+      expect(mockResolveSourceLocale).not.toHaveBeenCalled()
+    })
+
+    it('401s on a bearer token mismatch', async () => {
+      await setup({
+        config: { changedBatchToken: 'secret' },
+        contentTypes: { 'api::first.first': simpleContentType },
+      })
+      const ctx = createContext({ targetLocale: 'en' }, undefined, {
+        authorization: 'Bearer wrong',
+      })
+
+      await strapi
+        .plugin('translate')
+        .controller<TranslateController>('translate')
+        .translateBatchChanged(
+          ctx,
+          jest.fn(() => Promise.resolve())
+        )
+
+      expect(ctx.unauthorized).toHaveBeenCalled()
+      expect(mockResolveSourceLocale).not.toHaveBeenCalled()
+    })
+
+    it('400s on a malformed `since`', async () => {
+      await setup({
+        config: { changedBatchToken: 'secret' },
+        contentTypes: { 'api::first.first': simpleContentType },
+      })
+      const ctx = createContext(
+        { targetLocale: 'en', since: 'not-a-real-date' },
+        undefined,
+        { authorization: 'Bearer secret' }
+      )
+
+      await strapi
+        .plugin('translate')
+        .controller<TranslateController>('translate')
+        .translateBatchChanged(
+          ctx,
+          jest.fn(() => Promise.resolve())
+        )
+
+      expect(ctx.badRequest).toHaveBeenCalled()
+      expect(mockQueueChanged).not.toHaveBeenCalled()
+    })
+
+    it('returns 202 without awaiting any translation', async () => {
+      mockResolveSourceLocale.mockResolvedValue('sv')
+      mockQueueChanged.mockResolvedValue({
+        planId: 'changed-1',
+        total: 2,
+        queued: 2,
+        skipped: 0,
+        byContentType: [],
+      })
+
+      await setup({
+        config: { changedBatchToken: 'secret' },
+        contentTypes: { 'api::first.first': simpleContentType },
+      })
+      const ctx = createContext({ targetLocale: 'en' }, undefined, {
+        authorization: 'Bearer secret',
+      })
+
+      await strapi
+        .plugin('translate')
+        .controller<TranslateController>('translate')
+        .translateBatchChanged(
+          ctx,
+          jest.fn(() => Promise.resolve())
+        )
+
+      expect(ctx.status).toBe(202)
+      expect((ctx.body as any).data).toMatchObject({
+        planId: 'changed-1',
+        queued: 2,
+      })
+    })
+  })
+
   it('id has to be a number or string', async () => {
     // given
     const documentId = null

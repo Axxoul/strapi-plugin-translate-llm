@@ -9,9 +9,6 @@ import { ActionType } from './actions'
 interface TierTableProps {
   contentTypes: ContentTypeTranslationReport[]
   locales: Array<Pick<Locale, 'code' | 'name'>>
-  // Only `contentType` is read below; demanding more (e.g. documentId) rejects
-  // the UpdatedEntry[] that callers actually pass.
-  updates: Array<{ contentType?: string }>
   onAction: (params: {
     action: ActionType
     targetLocale?: string
@@ -19,12 +16,7 @@ interface TierTableProps {
   }) => void
 }
 
-const TierTable = ({
-  contentTypes,
-  locales,
-  updates,
-  onAction,
-}: TierTableProps) => {
+const TierTable = ({ contentTypes, locales, onAction }: TierTableProps) => {
   const COL_COUNT = locales.length + 1
 
   return (
@@ -35,11 +27,6 @@ const TierTable = ({
           <CollectionRow
             key={collection.contentType}
             entry={collection}
-            updateCount={
-              updates.filter(
-                (update) => update?.contentType === collection.contentType
-              ).length
-            }
             locales={locales}
             onAction={(action, targetLocale) =>
               onAction({ action, targetLocale, collection })

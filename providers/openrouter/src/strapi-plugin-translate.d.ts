@@ -39,7 +39,6 @@ declare module 'strapi-plugin-translate-llm/shared' {
     translate: any
     untranslated: any
     'batch-translate-job': any
-    'updated-entry': any
   }
 
   export type TranslatePluginService<

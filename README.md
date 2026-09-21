@@ -129,7 +129,7 @@ module.exports = {
       // in the source locale. Repairs relations the forward mapping had to drop because
       // the related localization did not exist yet. Additive only. (default: true)
       relinkIncomingRelations: true,
-      // Ignore updates for certain content types (default: [])
+      // Content types the nightly `/translate/batch/changed` sweep never queues (default: [])
       ignoreUpdatedContentTypes: ['api::category.category'],
       // Regenerate UIDs when batch updating (default: false)
       regenerateUids: true,
@@ -141,12 +141,16 @@ module.exports = {
       translateOn: 'save',        // 'save' | 'publish'
       cascade: 'off',             // 'off' | 'missing-only'
       autoPublish: 'trigger',     // 'draft' | 'publish' | 'mirror' | 'trigger'
-      updatedEntryAutoPublish: 'draft', // 'draft' | 'publish' | 'mirror'
       onSourceUnpublish: 'ignore',      // 'ignore' | 'unpublish'
       cascadeMaxEntries: 50,      // total per trigger, across all target locales
       cascadeMaxDepth: 5,         // relation hops the cascade may follow
       cascadeLocales: null,       // null = every locale, or e.g. ['en', 'de']
       cascadeIgnoreContentTypes: [],
+
+      // Shared secret for `POST /translate/batch/changed` (n8n-driven nightly
+      // translation). Unset ('') means the route 404s. See "Nightly changed-batch
+      // translation" below.
+      changedBatchToken: env('CHANGED_BATCH_TOKEN'),
     },
   },
 }
@@ -162,7 +166,6 @@ config. The file config supplies the default; the UI shows what it falls back to
 | `translateOn` | `save`, `publish` | `save` | Which editor action starts a translation. `publish` waits for a publish — but only for content types that *have* draft & publish; for the rest, saving is publishing and they keep firing on save. |
 | `cascade` | `off`, `missing-only` | `off` | `missing-only` translates the related entries an entry depends on **before** the entry itself, but only those with no target-locale version yet. Existing translations are never re-translated or overwritten. |
 | `autoPublish` | `draft`, `publish`, `mirror`, `trigger` | `trigger` | Publish policy for the entry that was saved. `trigger` = publish iff the triggering action published (the historical behaviour). `mirror` = publish iff the source document has a published version. Cascaded dependencies always use `mirror` on **their own** source, whatever this is set to. |
-| `updatedEntryAutoPublish` | `draft`, `publish`, `mirror` | `draft` | Publish policy for the "re-translate updated entries" path. `trigger` is rejected here — there is no triggering action. |
 | `onSourceUnpublish` | `ignore`, `unpublish` | `ignore` | `unpublish` takes the translations of an unpublished entry offline with it. Applies to that entry only; it is **never** cascaded to related content, because unpublishing a shared category because one article went offline would be destructive. |
 | `cascadeMaxEntries` | integer ≥ 1 | `50` | Hard ceiling on entries one trigger may queue, counted **in total across all target locales**, not per locale. One entry per target locale is reserved for the trigger itself; the rest is the dependency budget. Hitting the ceiling is logged with the locales that were cut short. |
 | `cascadeMaxDepth` | integer ≥ 1 | `5` | Relation hops the cascade walk may follow. |
@@ -279,11 +282,65 @@ Notes:
 - UIDs are regenerated automatically in batch mode
 - Errors are shown in logs or by hovering the `Job failed` badge
 
-### Retranslating updated entities
+### Nightly changed-batch translation (n8n)
 
-Updated entities appear in the batch update section for easy re-translation. Configure with:
-- `regenerateUids: true` — regenerate UIDs on retranslation
-- `ignoreUpdatedContentTypes` — exclude content types from update tracking
+`POST /translate/batch/changed` translates everything whose source changed since a
+timestamp, in dependency order, driven by an external scheduler like n8n. It only
+enqueues work before responding — actual translation happens in the background queue —
+so the request returns immediately. Auth is a shared secret, not an admin session: set
+`changedBatchToken` above and send it as `Authorization: Bearer <token>`; the route 404s
+if the token is unset and 401s on a mismatch.
+
+**Steady state — one call, run nightly:**
+
+```
+POST /translate/batch/changed
+{ "since": "<now - 26h>", "targetLocale": "en", "autoPublish": "mirror" }
+```
+
+Use a 26-hour window rather than 24 so a skipped night gets swept up by the next run. On
+an already-populated locale every relation target already exists, so a single `mirror`
+pass translates and publishes with nothing left to order.
+
+**Cold-locale rollout (one-off)** — populating a brand-new locale (e.g. `nb`) where
+nothing exists yet needs two passes instead, because `product` requires
+`product_options` and `product-option` requires `product`, and no single *published*
+write can satisfy both. This is a one-off bootstrap procedure, not the nightly job:
+
+```
+POST /translate/batch/changed
+{ "since": "1970-01-01T00:00:00.000Z", "targetLocale": "nb", "autoPublish": "draft" }
+```
+
+Poll `GET /translate/batch/changed/status?planId=<planId>` (same bearer token) until
+`pending` and `translating` are both `0`, then run the **same query window again**
+with `mirror`:
+
+```
+POST /translate/batch/changed
+{ "since": "1970-01-01T00:00:00.000Z", "targetLocale": "nb", "autoPublish": "mirror" }
+```
+
+There is no dedicated publish-only mode: the second call re-translates everything the
+first call already translated, so the rollout pays for a full second translation pass.
+That's a deliberate trade — it keeps the endpoint to a single code path (`autoPublish`
+only, no `mode`) instead of a parallel publish-only branch that exists solely to save
+one pass on a one-off bootstrap.
+
+**Known caveat, accepted rather than solved:** a product created *inside* the nightly
+window whose product-options are also new can still fail the `mirror` pass, because the
+options don't exist in the target locale yet when the product is published. It surfaces
+as a `failed` queue row naming the field — and it's sticky, since the product's
+`updatedAt` falls outside every later window, so it is never picked up automatically.
+Fix it by re-saving the product, or by running the cold-locale two-phase sequence for it.
+There is no automatic retry for this by design.
+
+**Target-locale edits are not tracked.** `/batch/changed` detects changes on the
+*source* locale only (it queries `updatedAt` on the source-locale draft) — a hand-edit
+made directly to an EN entry is never flagged for re-sweep. Earlier releases had a
+separate `updated-entry` tracker that recorded exactly this, but its only action would
+have been to overwrite that hand-edit with a fresh machine translation, so it was
+removed rather than reconciled with this endpoint.
 
 ### Relation translation
 

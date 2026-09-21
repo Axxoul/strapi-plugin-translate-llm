@@ -7,6 +7,7 @@ import {
   AutoTranslateSettings,
   AutoTranslateSettingsData,
 } from '../../../shared/contracts/auto-translate'
+import type { PendingRowInput } from '../../../shared/services/auto-translate'
 import {
   AUTO_PUBLISH_MODES,
   AutoPublishMode,
@@ -310,19 +311,6 @@ type QueueRow = {
   planId: string
   tier: number
   createdAt: string
-}
-
-type PendingRowInput = {
-  contentType: string
-  entryDocumentId: string
-  displayName?: string
-  sourceLocale: string
-  targetLocale: string
-  planId: string
-  tier: number
-  publishMode: AutoPublishMode
-  triggerPublished: boolean
-  isTrigger: boolean
 }
 
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -679,6 +667,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
    * plan queued later never has to wait for another plan's tier-0 work to
    * finish before its own tier-1 work becomes eligible.
    */
+  /** Public entry point for other services — never call `_enqueue` directly. */
+  async enqueueRows(rows: PendingRowInput[]): Promise<number> {
+    return this._enqueue(rows)
+  },
+
   async _enqueue(rows: PendingRowInput[]): Promise<number> {
     let queued = 0
 
@@ -1047,12 +1040,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
   async getLogs(filters?: {
     status?: AutoTranslateLogStatus
     limit?: number
+    planId?: string
   }): Promise<AutoTranslateLogEntry[]> {
     const limit = filters?.limit || 50
 
     const where: Record<string, any> = {}
     if (filters?.status) {
       where.status = filters.status
+    }
+    if (filters?.planId) {
+      where.planId = filters.planId
     }
 
     const entries = await logQuery().findMany({
