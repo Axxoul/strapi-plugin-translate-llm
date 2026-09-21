@@ -147,6 +147,11 @@ module.exports = {
       cascadeMaxDepth: 5,         // relation hops the cascade may follow
       cascadeLocales: null,       // null = every locale, or e.g. ['en', 'de']
       cascadeIgnoreContentTypes: [],
+
+      // Shared secret for `POST /translate/batch/changed` (n8n-driven nightly
+      // translation). Unset ('') means the route 404s. See "Nightly changed-batch
+      // translation" below.
+      changedBatchToken: env('CHANGED_BATCH_TOKEN'),
     },
   },
 }
@@ -284,6 +289,52 @@ Notes:
 Updated entities appear in the batch update section for easy re-translation. Configure with:
 - `regenerateUids: true` — regenerate UIDs on retranslation
 - `ignoreUpdatedContentTypes` — exclude content types from update tracking
+
+### Nightly changed-batch translation (n8n)
+
+`POST /translate/batch/changed` translates everything whose source changed since a
+timestamp, in dependency order, driven by an external scheduler like n8n. It only
+enqueues work before responding — actual translation happens in the background queue —
+so the request returns immediately. Auth is a shared secret, not an admin session: set
+`changedBatchToken` above and send it as `Authorization: Bearer <token>`; the route 404s
+if the token is unset and 401s on a mismatch.
+
+**Steady state — one call, run nightly:**
+
+```
+POST /translate/batch/changed
+{ "since": "<now - 26h>", "targetLocale": "en", "autoPublish": "mirror" }
+```
+
+Use a 26-hour window rather than 24 so a skipped night gets swept up by the next run. On
+an already-populated locale every relation target already exists, so a single `mirror`
+pass translates and publishes with nothing left to order.
+
+**Cold-locale rollout (one-off)** — populating a brand-new locale (e.g. `nb`) where
+nothing exists yet needs two phases instead, because `product` requires
+`product_options` and `product-option` requires `product`, and no single *published*
+write can satisfy both. This is a one-off bootstrap procedure, not the nightly job:
+
+```
+POST /translate/batch/changed
+{ "since": "1970-01-01T00:00:00.000Z", "targetLocale": "nb", "autoPublish": "draft" }
+```
+
+Poll `GET /translate/batch/changed/status?planId=<planId>` (same bearer token) until
+`pending` and `translating` are both `0`, then:
+
+```
+POST /translate/batch/changed
+{ "since": "1970-01-01T00:00:00.000Z", "targetLocale": "nb", "mode": "publish" }
+```
+
+**Known caveat, accepted rather than solved:** a product created *inside* the nightly
+window whose product-options are also new can still fail the `mirror` pass, because the
+options don't exist in the target locale yet when the product is published. It surfaces
+as a `failed` queue row naming the field — and it's sticky, since the product's
+`updatedAt` falls outside every later window, so it is never picked up automatically.
+Fix it by re-saving the product, or by running the cold-locale two-phase sequence for it.
+There is no automatic retry for this by design.
 
 ### Relation translation
 

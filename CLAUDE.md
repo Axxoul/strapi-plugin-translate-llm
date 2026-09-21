@@ -80,6 +80,8 @@ React frontend using `@strapi/design-system` v2 and `react-intl`. Key views: col
 - `DELETE /auto-translate/logs` — Clear all rows
 - `GET /auto-translate/queue` — Queue status: pending/translating/failed counts, oldest live row, stale count, whether the executor is running
 - `DELETE /auto-translate/queue` — Kill switch: cancel pending rows without a restart
+- `POST /translate/batch/changed` — n8n-driven nightly translation: everything whose source changed since a timestamp, in dependency order. Bearer-token auth (`changedBatchToken`), not an admin session — see README's "Nightly changed-batch translation"
+- `GET /translate/batch/changed/status` — Poll queue status for a changed-batch run (same bearer auth); for n8n, which cannot reach the admin-only `GET /auto-translate/queue`
 
 ## Code Style
 
