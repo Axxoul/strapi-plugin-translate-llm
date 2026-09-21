@@ -18,23 +18,6 @@ export interface QueueChangedResult {
   byContentType: Array<ChangedByContentType & { queued: number }>
 }
 
-export interface PublishChangedParams {
-  since: string
-  sourceLocale: string
-  targetLocale: string
-  contentTypes?: string[]
-}
-
-export interface PublishChangedResult {
-  planId: string
-  total: number
-  published: number
-  skippedUnpublishedSource: number
-  skippedNoTarget: number
-  failed: number
-  byContentType: Array<ChangedByContentType & { published: number }>
-}
-
 export interface ChangedQueueStatus {
   pending: number
   translating: number
@@ -49,6 +32,5 @@ export interface BatchChangedService {
    * master locale; else the i18n default locale. `null` when none resolve. */
   resolveSourceLocale(explicit?: string): Promise<string | null>
   queueChanged(params: QueueChangedParams): Promise<QueueChangedResult>
-  publishChanged(params: PublishChangedParams): Promise<PublishChangedResult>
   getStatus(planId?: string): Promise<ChangedQueueStatus>
 }

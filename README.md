@@ -303,7 +303,7 @@ an already-populated locale every relation target already exists, so a single `m
 pass translates and publishes with nothing left to order.
 
 **Cold-locale rollout (one-off)** — populating a brand-new locale (e.g. `nb`) where
-nothing exists yet needs two phases instead, because `product` requires
+nothing exists yet needs two passes instead, because `product` requires
 `product_options` and `product-option` requires `product`, and no single *published*
 write can satisfy both. This is a one-off bootstrap procedure, not the nightly job:
 
@@ -313,12 +313,19 @@ POST /translate/batch/changed
 ```
 
 Poll `GET /translate/batch/changed/status?planId=<planId>` (same bearer token) until
-`pending` and `translating` are both `0`, then:
+`pending` and `translating` are both `0`, then run the **same query window again**
+with `mirror`:
 
 ```
 POST /translate/batch/changed
-{ "since": "1970-01-01T00:00:00.000Z", "targetLocale": "nb", "mode": "publish" }
+{ "since": "1970-01-01T00:00:00.000Z", "targetLocale": "nb", "autoPublish": "mirror" }
 ```
+
+There is no dedicated publish-only mode: the second call re-translates everything the
+first call already translated, so the rollout pays for a full second translation pass.
+That's a deliberate trade — it keeps the endpoint to a single code path (`autoPublish`
+only, no `mode`) instead of a parallel publish-only branch that exists solely to save
+one pass on a one-off bootstrap.
 
 **Known caveat, accepted rather than solved:** a product created *inside* the nightly
 window whose product-options are also new can still fail the `mirror` pass, because the
@@ -327,6 +334,13 @@ as a `failed` queue row naming the field — and it's sticky, since the product'
 `updatedAt` falls outside every later window, so it is never picked up automatically.
 Fix it by re-saving the product, or by running the cold-locale two-phase sequence for it.
 There is no automatic retry for this by design.
+
+**Target-locale edits are not tracked.** `/batch/changed` detects changes on the
+*source* locale only (it queries `updatedAt` on the source-locale draft) — a hand-edit
+made directly to an EN entry is never flagged for re-sweep. Earlier releases had a
+separate `updated-entry` tracker that recorded exactly this, but its only action would
+have been to overwrite that hand-edit with a fresh machine translation, so it was
+removed rather than reconciled with this endpoint.
 
 ### Relation translation
 

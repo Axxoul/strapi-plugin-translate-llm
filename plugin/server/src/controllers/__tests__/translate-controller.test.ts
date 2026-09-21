@@ -143,7 +143,6 @@ describe('translate controller', () => {
   describe('translateBatchChanged', () => {
     const mockResolveSourceLocale = jest.fn<any>()
     const mockQueueChanged = jest.fn<any>()
-    const mockPublishChanged = jest.fn<any>()
 
     beforeEach(async () => {
       jest.resetModules()
@@ -151,7 +150,6 @@ describe('translate controller', () => {
         return () => ({
           resolveSourceLocale: mockResolveSourceLocale,
           queueChanged: mockQueueChanged,
-          publishChanged: mockPublishChanged,
           getStatus: jest.fn(),
         })
       })
@@ -161,7 +159,6 @@ describe('translate controller', () => {
       Object.defineProperty(global, 'strapi', {})
       mockResolveSourceLocale.mockReset()
       mockQueueChanged.mockReset()
-      mockPublishChanged.mockReset()
     })
 
     it('404s when no changedBatchToken is configured', async () => {
@@ -255,11 +252,9 @@ describe('translate controller', () => {
           jest.fn(() => Promise.resolve())
         )
 
-      expect(mockPublishChanged).not.toHaveBeenCalled()
       expect(ctx.status).toBe(202)
       expect((ctx.body as any).data).toMatchObject({
         planId: 'changed-1',
-        mode: 'translate',
         queued: 2,
       })
     })

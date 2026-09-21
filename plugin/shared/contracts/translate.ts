@@ -157,8 +157,8 @@ export declare namespace UsageEstimate {
 }
 
 /**
- * POST /translate/batch/changed - Translate or publish everything whose source
- * changed since a timestamp, in dependency order. Driven nightly by n8n.
+ * POST /translate/batch/changed - Translate everything whose source changed
+ * since a timestamp, in dependency order. Driven nightly by n8n.
  * Bearer-token auth (`changedBatchToken`), not admin session — `config: { auth: false }`.
  */
 export declare namespace TranslateBatchChanged {
@@ -168,7 +168,6 @@ export declare namespace TranslateBatchChanged {
       since?: string
       targetLocale: string
       autoPublish?: 'draft' | 'mirror' | 'publish'
-      mode?: 'translate' | 'publish'
       sourceLocale?: string
       contentTypes?: string[]
     }
@@ -180,9 +179,8 @@ export declare namespace TranslateBatchChanged {
     changed: number
   }
 
-  export interface TranslateResponseData {
+  export interface ResponseData {
     planId: string
-    mode: 'translate'
     since: string
     sourceLocale: string
     targetLocale: string
@@ -193,20 +191,8 @@ export declare namespace TranslateBatchChanged {
     byContentType: Array<ByContentType & { queued: number }>
   }
 
-  export interface PublishResponseData {
-    planId: string
-    mode: 'publish'
-    since: string
-    total: number
-    published: number
-    skippedUnpublishedSource: number
-    skippedNoTarget: number
-    failed: number
-    byContentType: Array<ByContentType & { published: number }>
-  }
-
   export type Response =
-    | { data: TranslateResponseData | PublishResponseData }
+    | { data: ResponseData }
     | {
         data: null
         error: errors.ApplicationError

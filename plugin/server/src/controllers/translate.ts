@@ -72,7 +72,6 @@ const batchChangedBodySchema = z.object({
   since: z.string().optional(),
   targetLocale: z.string(),
   autoPublish: z.enum(['draft', 'mirror', 'publish']).optional(),
-  mode: z.enum(['translate', 'publish']).optional(),
   sourceLocale: z.string().optional(),
   contentTypes: z.array(z.string()).optional(),
 })
@@ -294,26 +293,6 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
 
     const { targetLocale, contentTypes } = data
 
-    if (data.mode === 'publish') {
-      await withKeepAlive(ctx, async () => {
-        try {
-          const result = await getService('batch-changed').publishChanged({
-            since: sinceIso,
-            sourceLocale,
-            targetLocale,
-            contentTypes,
-          })
-          return { data: { mode: 'publish' as const, since: sinceIso, ...result } }
-        } catch (error: any) {
-          return {
-            data: null,
-            error: { message: error.message || 'Publish failed' },
-          }
-        }
-      })
-      return
-    }
-
     const publishMode = data.autoPublish ?? 'draft'
     try {
       const result = await getService('batch-changed').queueChanged({
@@ -326,7 +305,6 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
       ctx.status = 202
       ctx.body = {
         data: {
-          mode: 'translate' as const,
           since: sinceIso,
           sourceLocale,
           targetLocale,

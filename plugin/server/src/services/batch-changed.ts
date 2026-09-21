@@ -1,15 +1,12 @@
 import { Core, UID } from '@strapi/strapi'
 import {
   BatchChangedService,
-  PublishChangedParams,
-  PublishChangedResult,
   QueueChangedParams,
   QueueChangedResult,
 } from '../../../shared/services/batch-changed'
 import { TranslateConfig } from '../config'
 import { getService } from '../utils/get-service'
 import { getTierMap } from '../utils/tier-map'
-import { isDraftAndPublish, resolvePublish } from '../utils/resolve-publish'
 import {
   buildChangedRows,
   ChangedDocument,
@@ -128,90 +125,6 @@ export default ({ strapi }: { strapi: Core.Strapi }): BatchChangedService => ({
     strapi.log.debug(`[batch-changed] ${planId} byContentType=${JSON.stringify(byContentType)}`)
 
     return { planId, total, queued, skipped: total - queued, byContentType }
-  },
-
-  async publishChanged(params: PublishChangedParams): Promise<PublishChangedResult> {
-    const { uids, tiers } = selectUids(params.contentTypes)
-    const planId = newPlanId()
-
-    let total = 0
-    let published = 0
-    let skippedUnpublishedSource = 0
-    let skippedNoTarget = 0
-    let failed = 0
-    const byContentType: PublishChangedResult['byContentType'] = []
-
-    for (const uid of uids) {
-      const docs = await findChanged(uid, params.sourceLocale, params.since)
-      total += docs.length
-      let uidPublished = 0
-
-      for (const doc of docs) {
-        try {
-          const target = await strapi.documents(uid as UID.ContentType).findOne({
-            documentId: doc.documentId,
-            locale: params.targetLocale,
-          })
-          if (!target) {
-            skippedNoTarget++
-            continue
-          }
-          // A non-D&P type has one always-live row — nothing to publish.
-          if (!isDraftAndPublish(uid)) continue
-
-          const shouldPublish = await resolvePublish({
-            mode: 'mirror',
-            uid: uid as UID.ContentType,
-            documentId: doc.documentId,
-            sourceLocale: params.sourceLocale,
-          })
-          if (!shouldPublish) {
-            skippedUnpublishedSource++
-            continue
-          }
-
-          await strapi.documents(uid as UID.ContentType).publish({
-            documentId: doc.documentId,
-            locale: params.targetLocale,
-          })
-          published++
-          uidPublished++
-        } catch (error) {
-          failed++
-          await getService('batch-translate-log').createFailure({
-            batchJobId: planId,
-            contentType: uid,
-            entryDocumentId: doc.documentId,
-            sourceLocale: params.sourceLocale,
-            targetLocale: params.targetLocale,
-            error: (error as Error)?.message ?? String(error),
-          })
-        }
-      }
-
-      byContentType.push({
-        uid,
-        tier: tiers.get(uid) ?? 0,
-        changed: docs.length,
-        published: uidPublished,
-      })
-    }
-
-    strapi.log.info(
-      `[batch-changed] ${planId} since=${params.since} target=${params.targetLocale} mode=publish ` +
-        `types=[${uids.join(', ')}] published=${published} failed=${failed}`
-    )
-    strapi.log.debug(`[batch-changed] ${planId} byContentType=${JSON.stringify(byContentType)}`)
-
-    return {
-      planId,
-      total,
-      published,
-      skippedUnpublishedSource,
-      skippedNoTarget,
-      failed,
-      byContentType,
-    }
   },
 
   async getStatus(planId?: string) {
