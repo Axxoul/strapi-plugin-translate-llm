@@ -5,6 +5,21 @@ import {
   AutoTranslateSettings,
   AutoTranslateSettingsData,
 } from '../contracts/auto-translate'
+import { AutoPublishMode } from '../types/auto-translate-options'
+
+/** A row the persisted queue will write as `pending`. */
+export type PendingRowInput = {
+  contentType: string
+  entryDocumentId: string
+  displayName?: string
+  sourceLocale: string
+  targetLocale: string
+  planId: string
+  tier: number
+  publishMode: AutoPublishMode
+  triggerPublished: boolean
+  isTrigger: boolean
+}
 
 export interface AutoTranslateService {
   /** True while the plugin holds a write lock on this exact localization. */
@@ -37,6 +52,7 @@ export interface AutoTranslateService {
   getLogs(filters?: {
     status?: AutoTranslateLogStatus
     limit?: number
+    planId?: string
   }): Promise<AutoTranslateLogEntry[]>
   clearLogs(): Promise<number>
   /**
@@ -55,6 +71,8 @@ export interface AutoTranslateService {
     input: Partial<AutoTranslateSettings>
   ): Promise<AutoTranslateSettingsData>
 
+  /** Public wrapper around the persisted-queue writer, for other services. */
+  enqueueRows(rows: PendingRowInput[]): Promise<number>
   /** Start draining the queue if it is not already running. */
   startQueue(): void
   /** Re-queue work interrupted by a restart. Returns how many were interrupted. */

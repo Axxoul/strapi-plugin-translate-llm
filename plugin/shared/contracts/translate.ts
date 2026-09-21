@@ -177,6 +177,90 @@ export declare namespace UsageEstimate {
 }
 
 /**
+ * POST /translate/batch/changed - Translate or publish everything whose source
+ * changed since a timestamp, in dependency order. Driven nightly by n8n.
+ * Bearer-token auth (`changedBatchToken`), not admin session — `config: { auth: false }`.
+ */
+export declare namespace TranslateBatchChanged {
+  export interface Request {
+    query: {}
+    body: {
+      since?: string
+      targetLocale: string
+      autoPublish?: 'draft' | 'mirror' | 'publish'
+      mode?: 'translate' | 'publish'
+      sourceLocale?: string
+      contentTypes?: string[]
+    }
+  }
+
+  export interface ByContentType {
+    uid: string
+    tier: number
+    changed: number
+  }
+
+  export interface TranslateResponseData {
+    planId: string
+    mode: 'translate'
+    since: string
+    sourceLocale: string
+    targetLocale: string
+    publishMode: 'draft' | 'mirror' | 'publish'
+    total: number
+    queued: number
+    skipped: number
+    byContentType: Array<ByContentType & { queued: number }>
+  }
+
+  export interface PublishResponseData {
+    planId: string
+    mode: 'publish'
+    since: string
+    total: number
+    published: number
+    skippedUnpublishedSource: number
+    skippedNoTarget: number
+    failed: number
+    byContentType: Array<ByContentType & { published: number }>
+  }
+
+  export type Response =
+    | { data: TranslateResponseData | PublishResponseData }
+    | {
+        data: null
+        error: errors.ApplicationError
+      }
+}
+
+/**
+ * GET /translate/batch/changed/status - Poll queue status for a changed-batch
+ * run. Same bearer-token auth as `POST /translate/batch/changed` — n8n cannot
+ * reach the admin-only `GET /auto-translate/queue`.
+ */
+export declare namespace TranslateBatchChangedStatus {
+  export interface Request {
+    query: { planId?: string }
+    body: {}
+  }
+
+  export interface StatusData {
+    pending: number
+    translating: number
+    failed: number
+    running: boolean
+    oldestPendingAt: string | null
+  }
+
+  export type Response =
+    | { data: StatusData }
+    | {
+        data: null
+        error: errors.ApplicationError
+      }
+}
+
+/**
  * POST /translate/usage/estimate-collection - Get a report of the amount of characters that will be translated for a whole collection
  */
 export declare namespace UsageEstimateCollection {

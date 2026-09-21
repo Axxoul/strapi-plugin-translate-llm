@@ -95,6 +95,14 @@ export type TranslateConfig = {
 
   /** Content types the cascade never walks into. */
   cascadeIgnoreContentTypes: string[]
+
+  /**
+   * Shared secret for `POST /translate/batch/changed` and its status endpoint.
+   * These routes are `auth: false` (n8n has no admin session), so this bearer
+   * token is the only gate. Unset ('') means the routes 404 rather than accept
+   * every request.
+   */
+  changedBatchToken: string
 }
 
 export default {
@@ -124,6 +132,7 @@ export default {
       cascadeMaxDepth: 5,
       cascadeLocales: null,
       cascadeIgnoreContentTypes: [],
+      changedBatchToken: '',
     }
   },
   validator({
@@ -142,6 +151,7 @@ export default {
     cascadeMaxDepth,
     cascadeLocales,
     cascadeIgnoreContentTypes,
+    changedBatchToken,
   }: Partial<TranslateConfig>) {
     if (provider === 'dummy' && process.env.NODE_ENV !== 'test') {
       console.warn(
@@ -217,6 +227,9 @@ export default {
         cascadeIgnoreContentTypes.some((l) => typeof l !== 'string'))
     ) {
       throw new Error('cascadeIgnoreContentTypes has to be an array of strings')
+    }
+    if (changedBatchToken !== undefined && typeof changedBatchToken !== 'string') {
+      throw new Error('changedBatchToken has to be a string')
     }
   },
 }

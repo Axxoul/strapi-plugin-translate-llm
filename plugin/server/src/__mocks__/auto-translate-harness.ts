@@ -47,6 +47,8 @@ export type ContentTypeFixture = {
   localizations?: Record<string, string[]>
   /** Documents with a published row per locale. */
   published?: Record<string, string[]>
+  /** `updatedAt` per documentId (source locale), for the changed-batch query. */
+  updatedAt?: Record<string, string>
 }
 
 export type HarnessOptions = {
@@ -144,6 +146,21 @@ export function createHarness(options: HarnessOptions = {}) {
           : null
       }),
       findFirst: jest.fn(async () => null),
+      findMany: jest.fn(async ({ locale, filters, limit }: any = {}) => {
+        const ids = fixture.localizations?.[locale] ?? []
+        const gt = filters?.updatedAt?.$gt
+        let docs = ids.map((documentId) => ({
+          documentId,
+          updatedAt: fixture.updatedAt?.[documentId] ?? new Date(0).toISOString(),
+        }))
+        if (gt) docs = docs.filter((d) => d.updatedAt > gt)
+        docs.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1))
+        return limit ? docs.slice(0, limit) : docs
+      }),
+      publish: jest.fn(async ({ documentId, locale }: any = {}) => ({
+        documentId,
+        locale,
+      })),
       unpublish: jest.fn(async () => ({ documentId: 'x' })),
     }
   }
@@ -226,6 +243,9 @@ export function createHarness(options: HarnessOptions = {}) {
           service: (serviceName: string) => {
             if (serviceName === 'translate') return { translateEntity }
             if (serviceName === 'auto-translate') return strapi.__autoTranslate
+            if (serviceName === 'batch-changed') return strapi.__batchChanged
+            if (serviceName === 'batch-translate-log')
+              return strapi.__batchTranslateLog ?? {}
             return {}
           },
         }

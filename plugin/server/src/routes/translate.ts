@@ -112,6 +112,18 @@ export default [
     },
   },
   {
+    method: 'POST',
+    path: '/batch/changed',
+    handler: 'translate.translateBatchChanged',
+    config: { auth: false },
+  },
+  {
+    method: 'GET',
+    path: '/batch/changed/status',
+    handler: 'translate.translateBatchChangedStatus',
+    config: { auth: false },
+  },
+  {
     method: 'GET',
     path: '/batch/updates',
     handler: 'updated-entry.find',

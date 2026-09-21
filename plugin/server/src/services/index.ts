@@ -1,4 +1,5 @@
 import autoTranslate from './auto-translate'
+import batchChanged from './batch-changed'
 import batchTranslateJob from './batch-translate-job'
 import batchTranslateLog from './batch-translate-log'
 import chunks from './chunks'
@@ -11,6 +12,7 @@ import updatedEntry from './updated-entry'
 
 export default {
   'auto-translate': autoTranslate,
+  'batch-changed': batchChanged,
   'batch-translate-job': batchTranslateJob,
   'batch-translate-log': batchTranslateLog,
   provider,
