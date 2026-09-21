@@ -99,20 +99,6 @@ export default [
   },
   {
     method: 'POST',
-    path: '/batch/updates',
-    handler: 'translate.translateBatchUpdate',
-    config: {
-      policies: [
-        'admin::isAuthenticatedAdmin',
-        {
-          name: 'plugin::content-manager.hasPermissions',
-          config: { actions: ['plugin::translate.batch-translate'] },
-        },
-      ],
-    },
-  },
-  {
-    method: 'POST',
     path: '/batch/changed',
     handler: 'translate.translateBatchChanged',
     config: { auth: false },
@@ -122,34 +108,6 @@ export default [
     path: '/batch/changed/status',
     handler: 'translate.translateBatchChangedStatus',
     config: { auth: false },
-  },
-  {
-    method: 'GET',
-    path: '/batch/updates',
-    handler: 'updated-entry.find',
-    config: {
-      policies: [
-        'admin::isAuthenticatedAdmin',
-        {
-          name: 'plugin::content-manager.hasPermissions',
-          config: { actions: ['plugin::translate.batch-translate'] },
-        },
-      ],
-    },
-  },
-  {
-    method: 'DELETE',
-    path: '/batch/updates/:id',
-    handler: 'updated-entry.delete',
-    config: {
-      policies: [
-        'admin::isAuthenticatedAdmin',
-        {
-          name: 'plugin::content-manager.hasPermissions',
-          config: { actions: ['plugin::translate.batch-translate'] },
-        },
-      ],
-    },
   },
   {
     method: 'POST',

@@ -31,7 +31,6 @@ export interface ServiceMap {
   settings: SettingsService
   translate: TranslateService
   untranslated: UntranslatedService
-  'updated-entry': Core.CoreAPI.Service.CollectionType
 }
 
 export type TranslatePluginService<ServiceName extends keyof ServiceMap> =

@@ -7,7 +7,6 @@ import { getAllTranslatableFields } from '../utils/translatable-fields'
 import { filterAllDeletedFields } from '../utils/delete-fields'
 import { cleanData } from '../utils/clean-data'
 import { enforceMaxLengths } from '../utils/enforce-max-lengths'
-import { TRANSLATE_PRIORITY_BATCH_TRANSLATION } from '../utils/constants'
 import { updateUids } from '../utils/update-uids'
 import { BatchTranslateManagerImpl } from './batch-translate'
 import { Core, Data, Modules, UID } from '@strapi/strapi'
@@ -20,15 +19,10 @@ import {
   TierGroup,
   ContentTypeTranslationReport,
 } from '@shared/types/report'
-import {
-  isCollectionType,
-  isContentTypeUID,
-  isSingleType,
-} from '../utils/content-type'
+import { isCollectionType, isSingleType } from '../utils/content-type'
 import { BatchTranslateJob } from '@shared/types/batch-translate-job'
 import { populateAll, translateRelations } from '../utils'
 import { relinkIncomingRelations } from '../utils/relink-relations'
-import { resolvePublish } from '../utils/resolve-publish'
 import { warnUnpublishedDependencies } from '../utils/warn-unpublished-dependencies'
 import {
   buildDependencyGraph,
@@ -269,74 +263,6 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateService => ({
   },
   async batchTranslateCancelJob(id) {
     return this.batchTranslateManager.cancelJob(id)
-  },
-  async batchUpdate(params) {
-    const { updatedEntryIDs, sourceLocale } = params
-    for (const updateID of updatedEntryIDs) {
-      const update = await strapi
-        .documents('plugin::translate.updated-entry')
-        .findOne({ documentId: updateID })
-
-      if (!update || !isContentTypeUID(update.contentType)) continue
-
-      let documentId = update.groupID
-      if (typeof update.groupID === 'string' && update.groupID.includes('-')) {
-        let firstId = update.groupID.split('-')[0]
-        const entities = await strapi.documents(update.contentType).findMany({
-          filters: { id: { $eq: firstId } },
-          fields: ['documentId'],
-          locale: '*',
-        })
-        if (entities.length === 0) {
-          throw new Error('No entity found with id ' + firstId)
-        }
-        documentId = entities[0].documentId
-      }
-      const entities = await strapi.documents(update.contentType).findMany({
-        filters: { documentId: { $eq: documentId } },
-        fields: ['locale'],
-        locale: '*',
-      })
-      const targetLocales: string[] = entities
-        .map((entity) => entity.locale)
-        .filter((locale) => locale !== sourceLocale)
-
-      const sourceEntity = entities.find(
-        ({ locale }) => locale === sourceLocale
-      )
-
-      if (!sourceEntity)
-        throw new Error('No entity found with locale ' + sourceLocale)
-
-      // Configurable since 1.1.0. The default is `draft`, which is exactly the
-      // `publish: false` this replaced — re-translating an updated entry does
-      // not publish it unless an operator asks for that.
-      const publishMode =
-        strapi.config.get<TranslateConfig>('plugin::translate')
-          .updatedEntryAutoPublish ?? 'draft'
-
-      for (const targetLocale of targetLocales) {
-        await getService('translate').translateEntity({
-          documentId: documentId,
-          contentType: update.contentType,
-          sourceLocale,
-          targetLocale,
-          create: true,
-          updateExisting: true,
-          publish: await resolvePublish({
-            mode: publishMode,
-            uid: update.contentType,
-            documentId: documentId as string,
-            sourceLocale,
-          }),
-          priority: TRANSLATE_PRIORITY_BATCH_TRANSLATION,
-        })
-      }
-      await strapi
-        .documents('plugin::translate.updated-entry')
-        .delete({ documentId: updateID })
-    }
-    return { result: 'success' }
   },
   async contentTypes() {
     const localizedContentTypes: UID.ContentType[] = keys(

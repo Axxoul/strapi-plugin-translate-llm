@@ -51,19 +51,19 @@ Strapi v5 standard: `register` → `bootstrap` → `destroy`. Bootstrap (`plugin
 Providers are npm packages named `strapi-provider-translate-{name}`. Each exports `init(providerOptions, pluginConfig)` returning `{ translate({ text, sourceLocale, targetLocale, priority, format }), usage() }`. A built-in dummy provider copies values without translating. Both real providers use Bottleneck for rate limiting.
 
 ### Key Services (`plugin/server/src/services/`)
-- **auto-translate** — Automatic translation on save/publish, plus the dependency cascade. A document service middleware intercepts create/update/publish/unpublish on localized content types and resolves the locales the action touched. When a resolved locale matches the master locale, the service plans the work (optionally cascading into untranslated dependencies, tier-ordered), writes `pending` rows to a **persisted queue**, and a single sequential executor drains it via `translateEntity()`. An in-memory guard set prevents infinite loops; a separate depth counter suppresses `updated-entry` tracking for plugin-originated writes.
+- **auto-translate** — Automatic translation on save/publish, plus the dependency cascade. A document service middleware intercepts create/update/publish/unpublish on localized content types and resolves the locales the action touched. When a resolved locale matches the master locale, the service plans the work (optionally cascading into untranslated dependencies, tier-ordered), writes `pending` rows to a **persisted queue**, and a single sequential executor drains it via `translateEntity()`. An in-memory guard set prevents infinite loops.
 - **translate** — Orchestrates single-entity and batch translation; groups fields by format, calls provider, maps results back
 - **batch-translate/** — `BatchTranslateManager` + `BatchTranslateJobExecutor` handle DB-persisted, pause/resume-capable batch jobs that survive server restarts
+- **batch-changed** — Backs `POST /translate/batch/changed` and its status endpoint: finds everything whose source changed since a timestamp and queues it in dependency order
 - **chunks** — Splits text arrays respecting provider max length/byte limits; returns a reduce function to reassemble results
 - **format/** — Converts between markdown, HTML, and Strapi Blocks (JSONB) using showdown and jsdom
 - **untranslated** — Queries for content missing target locale translations
-- **updated-entry** — Tracks modified localizations for re-translation suggestions
 
 ### Shared Types (`plugin/shared/`)
 TypeScript interfaces and contracts shared between server and admin. Contains API request/response types (`contracts/`), service interfaces (`services/`), and domain types (`types/`).
 
 ### Content Types
-Three hidden collection types: `batch-translate-job` (job state/progress/status), `updated-entry` (modification tracking for re-translation), and `auto-translate-log` (**the auto-translate queue as well as its log** — status, plan id, tier, attempts and publish mode per row).
+Three hidden collection types: `batch-translate-job` (job state/progress/status), `batch-translate-log` (failure log for batch/changed jobs), and `auto-translate-log` (**the auto-translate queue as well as its log** — status, plan id, tier, attempts and publish mode per row).
 
 ### Admin UI (`plugin/admin/src/`)
 React frontend using `@strapi/design-system` v2 and `react-intl`. Key views: collection list with batch job status, content manager header action for direct translation (`CMHeaderActions.tsx`), usage quota display, settings page with provider config and auto-translate controls. The settings page includes a `StatusPanel` component that polls for auto-translate log entries (5s interval) and displays real-time translation progress/errors. Request validation uses Zod on the server side.
@@ -134,7 +134,7 @@ Automatic background translation when content is saved or published in the maste
 4. `translateOn: 'publish'` gates on `publishedNow` **only for draft-and-publish types**, read off `options.draftAndPublish`. A type without D&P has no publish event and one row, so for it save *is* publish.
 5. If the resolved locale matches the master locale, the `auto-translate` service plans the work and writes `pending` rows to the queue — **before** anything runs, so a restart in the window is visible rather than lost
 6. A single sequential executor drains the queue via the existing `translateEntity()` flow. Results (pending/translating/success/failed/cancelled) live on the same rows
-7. An in-memory `Set<string>` guard prevents infinite loops; a separate depth counter (`isPluginWrite()`) suppresses `updated-entry` tracking for *all* plugin-originated writes, including the relink pass writing to other documents
+7. An in-memory `Set<string>` guard prevents infinite loops. A separate depth counter, exposed as `isPluginWrite()`, tracks whether *any* plugin-originated write (including the relink pass) is in flight — it originally gated the `updated-entry` re-translation tracker, which has since been removed, so it currently has no caller
 8. The admin Settings page shows a real-time status panel with queue depth, stale-row warnings and a kill switch
 
 **The queue** (`auto-translate-log` doubles as it):
@@ -161,7 +161,7 @@ Automatic background translation when content is saved or published in the maste
 
 **Configuration:** file config supplies the defaults (`plugin/server/src/config/index.ts`), the DB store overrides them (Settings → Translate), exactly like `getMergedProviderOptions()`. See the README's *Auto-translate options* table.
 
-**Rule 0 — defaults are behaviour-preserving.** `translateOn: 'save'`, `cascade: 'off'`, `autoPublish: 'trigger'`, `updatedEntryAutoPublish: 'draft'`. `'trigger'` is a verbatim pass-through of the triggering action's publish flag — it deliberately does *not* branch on draft-and-publish, so an app that upgrades without touching config writes byte-identical parameters. Asserted by test, not by inspection.
+**Rule 0 — defaults are behaviour-preserving.** `translateOn: 'save'`, `cascade: 'off'`, `autoPublish: 'trigger'`. `'trigger'` is a verbatim pass-through of the triggering action's publish flag — it deliberately does *not* branch on draft-and-publish, so an app that upgrades without touching config writes byte-identical parameters. Asserted by test, not by inspection.
 
 **Watch out:** `'@shared/…'` is a **tsc-only** alias. Type-only imports work (SWC elides them); a runtime *value* import from `@shared` resolves under `tsc` and then fails under Jest and the build. Use a relative path for values — `config/index.ts`, `services/auto-translate.ts` and `BatchTranslateJobExecutor.ts` all do.
 

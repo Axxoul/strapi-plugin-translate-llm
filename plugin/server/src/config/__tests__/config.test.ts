@@ -92,7 +92,6 @@ describe('config', () => {
       expect(config.translateOn).toEqual('save')
       expect(config.cascade).toEqual('off')
       expect(config.autoPublish).toEqual('trigger')
-      expect(config.updatedEntryAutoPublish).toEqual('draft')
       expect(config.onSourceUnpublish).toEqual('ignore')
       expect(config.cascadeLocales).toBeNull()
       expect(config.cascadeIgnoreContentTypes).toEqual([])
@@ -121,11 +120,6 @@ describe('config', () => {
         'autoPublish has to be one of draft, publish, mirror, trigger',
       ],
       [
-        'updatedEntryAutoPublish',
-        'trigger',
-        'updatedEntryAutoPublish has to be one of draft, publish, mirror',
-      ],
-      [
         'onSourceUnpublish',
         'delete',
         'onSourceUnpublish has to be one of ignore, unpublish',
@@ -134,13 +128,6 @@ describe('config', () => {
       expect(() =>
         setup({ config: { [key]: value } as any })
       ).rejects.toThrow(message)
-    })
-
-    it('rejects trigger on the batch update path', () => {
-      // `trigger` has no meaning without a triggering action.
-      expect(() =>
-        setup({ config: { updatedEntryAutoPublish: 'trigger' } as any })
-      ).rejects.toThrow('updatedEntryAutoPublish has to be one of')
     })
 
     it.each([

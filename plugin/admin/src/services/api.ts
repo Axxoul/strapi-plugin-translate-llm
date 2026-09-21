@@ -6,7 +6,6 @@ const translateApi = adminApi.enhanceEndpoints({
     'TranslateUsageEstimate',
     'TranslateProviderUsage',
     'TranslateBatchJobStatus',
-    'TranslateBatchUpdates',
     'TranslateSettings',
     'AutoTranslateSettings',
     'AutoTranslateLogs',

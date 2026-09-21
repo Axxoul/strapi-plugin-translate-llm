@@ -3,7 +3,6 @@ import { TranslateProviderOptions } from '../../../shared/types/provider'
 import {
   AUTO_PUBLISH_MODES,
   AutoPublishMode,
-  BATCH_AUTO_PUBLISH_MODES,
   BatchAutoPublishMode,
   CASCADE_MODES,
   CascadeMode,
@@ -70,12 +69,6 @@ export type TranslateConfig = {
   autoPublish: AutoPublishMode
 
   /**
-   * Publish policy for `batchUpdate` (the "re-translate updated entries" path).
-   * `draft` reproduces the hardcoded `publish: false` this replaced.
-   */
-  updatedEntryAutoPublish: BatchAutoPublishMode
-
-  /**
    * What to do with target-locale entries when the source entry is unpublished.
    * Never cascaded — it applies to the trigger document only.
    */
@@ -126,7 +119,6 @@ export default {
       translateOn: 'save',
       cascade: 'off',
       autoPublish: 'trigger',
-      updatedEntryAutoPublish: 'draft',
       onSourceUnpublish: 'ignore',
       cascadeMaxEntries: 50,
       cascadeMaxDepth: 5,
@@ -145,7 +137,6 @@ export default {
     translateOn,
     cascade,
     autoPublish,
-    updatedEntryAutoPublish,
     onSourceUnpublish,
     cascadeMaxEntries,
     cascadeMaxDepth,
@@ -200,11 +191,6 @@ export default {
     assertEnum('translateOn', translateOn, TRANSLATE_ON_VALUES)
     assertEnum('cascade', cascade, CASCADE_MODES)
     assertEnum('autoPublish', autoPublish, AUTO_PUBLISH_MODES)
-    assertEnum(
-      'updatedEntryAutoPublish',
-      updatedEntryAutoPublish,
-      BATCH_AUTO_PUBLISH_MODES
-    )
     assertEnum(
       'onSourceUnpublish',
       onSourceUnpublish,

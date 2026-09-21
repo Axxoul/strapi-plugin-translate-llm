@@ -117,26 +117,6 @@ export declare namespace TranslateBatchJobStatus {
 }
 
 /**
- * POST /translate/batch/updates - Update the translations of a batch of entities
- */
-export declare namespace TranslateBatchUpdate {
-  export interface Request {
-    query: {}
-    body: {
-      sourceLocale: string
-      updatedEntryIDs: Data.DocumentID[]
-    }
-  }
-
-  export type Response =
-    | { data: { result: 'success' } }
-    | {
-        data: null
-        error: errors.ApplicationError
-      }
-}
-
-/**
  * POST /translate/report - Get a report of the translation status of all content types
  */
 export declare namespace ContentTypesTranslationReport {

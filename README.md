@@ -129,7 +129,7 @@ module.exports = {
       // in the source locale. Repairs relations the forward mapping had to drop because
       // the related localization did not exist yet. Additive only. (default: true)
       relinkIncomingRelations: true,
-      // Ignore updates for certain content types (default: [])
+      // Content types the nightly `/translate/batch/changed` sweep never queues (default: [])
       ignoreUpdatedContentTypes: ['api::category.category'],
       // Regenerate UIDs when batch updating (default: false)
       regenerateUids: true,
@@ -141,7 +141,6 @@ module.exports = {
       translateOn: 'save',        // 'save' | 'publish'
       cascade: 'off',             // 'off' | 'missing-only'
       autoPublish: 'trigger',     // 'draft' | 'publish' | 'mirror' | 'trigger'
-      updatedEntryAutoPublish: 'draft', // 'draft' | 'publish' | 'mirror'
       onSourceUnpublish: 'ignore',      // 'ignore' | 'unpublish'
       cascadeMaxEntries: 50,      // total per trigger, across all target locales
       cascadeMaxDepth: 5,         // relation hops the cascade may follow
@@ -167,7 +166,6 @@ config. The file config supplies the default; the UI shows what it falls back to
 | `translateOn` | `save`, `publish` | `save` | Which editor action starts a translation. `publish` waits for a publish — but only for content types that *have* draft & publish; for the rest, saving is publishing and they keep firing on save. |
 | `cascade` | `off`, `missing-only` | `off` | `missing-only` translates the related entries an entry depends on **before** the entry itself, but only those with no target-locale version yet. Existing translations are never re-translated or overwritten. |
 | `autoPublish` | `draft`, `publish`, `mirror`, `trigger` | `trigger` | Publish policy for the entry that was saved. `trigger` = publish iff the triggering action published (the historical behaviour). `mirror` = publish iff the source document has a published version. Cascaded dependencies always use `mirror` on **their own** source, whatever this is set to. |
-| `updatedEntryAutoPublish` | `draft`, `publish`, `mirror` | `draft` | Publish policy for the "re-translate updated entries" path. `trigger` is rejected here — there is no triggering action. |
 | `onSourceUnpublish` | `ignore`, `unpublish` | `ignore` | `unpublish` takes the translations of an unpublished entry offline with it. Applies to that entry only; it is **never** cascaded to related content, because unpublishing a shared category because one article went offline would be destructive. |
 | `cascadeMaxEntries` | integer ≥ 1 | `50` | Hard ceiling on entries one trigger may queue, counted **in total across all target locales**, not per locale. One entry per target locale is reserved for the trigger itself; the rest is the dependency budget. Hitting the ceiling is logged with the locales that were cut short. |
 | `cascadeMaxDepth` | integer ≥ 1 | `5` | Relation hops the cascade walk may follow. |
@@ -283,12 +281,6 @@ Notes:
 - Jobs survive server restarts (paused jobs resume automatically)
 - UIDs are regenerated automatically in batch mode
 - Errors are shown in logs or by hovering the `Job failed` badge
-
-### Retranslating updated entities
-
-Updated entities appear in the batch update section for easy re-translation. Configure with:
-- `regenerateUids: true` — regenerate UIDs on retranslation
-- `ignoreUpdatedContentTypes` — exclude content types from update tracking
 
 ### Nightly changed-batch translation (n8n)
 

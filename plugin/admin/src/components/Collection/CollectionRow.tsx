@@ -1,5 +1,5 @@
 import React, { memo } from 'react'
-import { Tr, Td, Button } from '@strapi/design-system'
+import { Tr, Td } from '@strapi/design-system'
 import { Typography } from '@strapi/design-system'
 import { Flex } from '@strapi/design-system'
 import { Badge } from '@strapi/design-system'
@@ -16,7 +16,6 @@ interface CollectionRowProps {
   entry: ContentTypeTranslationReport
   locales: Array<Pick<Locale, 'code' | 'name'>>
   onAction: (action: ActionType, locale?: string) => void
-  updateCount: number
   index: number
 }
 
@@ -24,7 +23,6 @@ const CollectionRow = ({
   entry,
   locales,
   onAction,
-  updateCount,
   index,
 }: CollectionRowProps) => {
   const { formatMessage } = useIntl()
@@ -180,23 +178,6 @@ const CollectionRow = ({
           </Td>
         )
       })}
-      <Td>
-        <Typography textColor="neutral800">
-          {updateCount > 0 && (
-            <Button
-              variant="tertiary"
-              onClick={() => onAction('update')}
-              data-cy={`${entry.contentType}.update`}
-            >
-              {updateCount}{' '}
-              {formatMessage({
-                id: getTranslation('batch-update.out-of-date'),
-                defaultMessage: 'translations may be out of date',
-              })}
-            </Button>
-          )}
-        </Typography>
-      </Td>
     </Tr>
   )
 }

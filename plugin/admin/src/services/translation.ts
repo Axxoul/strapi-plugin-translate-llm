@@ -1,8 +1,4 @@
-import {
-  TranslateBatchUpdate,
-  TranslateBatch,
-  TranslateEntity,
-} from '@shared/contracts/translate'
+import { TranslateBatch, TranslateEntity } from '@shared/contracts/translate'
 import { translateApi } from './api'
 
 const translationApi = translateApi.injectEndpoints({
@@ -20,28 +16,10 @@ const translationApi = translateApi.injectEndpoints({
       query: (data) => ({ url: `/translate/batch`, method: 'POST', data }),
       invalidatesTags: ['TranslateReport'],
     }),
-    translateBatchUpdate: build.mutation<
-      TranslateBatchUpdate.Response,
-      TranslateBatchUpdate.Request['body']
-    >({
-      query: (data) => ({
-        url: `/translate/batch/updates`,
-        method: 'POST',
-        data,
-      }),
-      invalidatesTags: ['TranslateBatchUpdates'],
-    }),
   }),
 })
 
-const {
-  useTranslateEntityMutation,
-  useTranslateBatchMutation,
-  useTranslateBatchUpdateMutation,
-} = translationApi
+const { useTranslateEntityMutation, useTranslateBatchMutation } =
+  translationApi
 
-export {
-  useTranslateEntityMutation,
-  useTranslateBatchMutation,
-  useTranslateBatchUpdateMutation,
-}
+export { useTranslateEntityMutation, useTranslateBatchMutation }

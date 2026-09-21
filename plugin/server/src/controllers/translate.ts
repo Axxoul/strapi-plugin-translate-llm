@@ -21,7 +21,6 @@ export interface TranslateController extends Core.Controller {
   translateBatchResumeJob: Core.ControllerHandler
   translateBatchCancelJob: Core.ControllerHandler
   translateBatchJobStatus: Core.ControllerHandler
-  translateBatchUpdate: Core.ControllerHandler
   translateBatchChanged: Core.ControllerHandler
   translateBatchChangedStatus: Core.ControllerHandler
   report: Core.ControllerHandler
@@ -55,11 +54,6 @@ const batchTranslateBodySchema = z.object({
 
 const idQuerySchema = z.object({
   documentId: z.string(),
-})
-
-const batchUpdateBodySchema = z.object({
-  sourceLocale: z.string(),
-  updatedEntryIDs: z.array(z.string()),
 })
 
 const usageEstimateBodySchema = z.object({
@@ -260,24 +254,6 @@ export default ({ strapi }: { strapi: Core.Strapi }): TranslateController => ({
         progress: job.progress,
         failureReason: job.failureReason,
       },
-    }
-  },
-  async translateBatchUpdate(ctx) {
-    const { data, error, success } = batchUpdateBodySchema.safeParse(
-      ctx.request.body
-    )
-
-    if (!success) {
-      return ctx.badRequest({ message: 'request data invalid', error })
-    }
-
-    const { updatedEntryIDs, sourceLocale } = data
-
-    ctx.body = {
-      data: await getService('translate').batchUpdate({
-        updatedEntryIDs,
-        sourceLocale,
-      }),
     }
   },
   async translateBatchChanged(ctx) {

@@ -8,7 +8,6 @@ import settings from './settings'
 import translate from './translate'
 import untranslated from './untranslated'
 import format from './format'
-import updatedEntry from './updated-entry'
 
 export default {
   'auto-translate': autoTranslate,
@@ -21,5 +20,4 @@ export default {
   untranslated,
   chunks,
   format,
-  'updated-entry': updatedEntry,
 }
